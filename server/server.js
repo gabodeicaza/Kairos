@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { getNews, getNewsFor } from './news.js';
 import { getForecast, isKnownRegion } from './forecast.js';
 import { lookupHazards, MX_BOX } from './hazards.js';
+import { handleAccounts } from './accounts.js';
+import { getStore, accountsConfigured } from './store.js';
 
 const WEB_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'web');
 const PORT = process.env.PORT || 3000;
@@ -25,16 +27,14 @@ http.createServer(async (req, res) => {
   const { pathname, searchParams } = new URL(req.url, 'http://localhost');
   // /api/hazards solo acepta POST y /api/news acepta POST además de GET: los datos de ubicación viajan en el cuerpo
   // y no en la URL, que las plataformas suelen registrar.
+  if (await handleAccounts(req, res, pathname, getStore)) return;   // /api/auth/*, /api/me, /api/profile, /api/account
   const allowed = pathname === '/api/hazards' ? ['POST'] : pathname === '/api/news' ? ['GET', 'HEAD', 'POST'] : ['GET', 'HEAD'];
   if (!allowed.includes(req.method)) return send(res, 405, 'Method Not Allowed', { Allow: allowed.join(', ') });
   try {
     if (pathname === '/healthz') return send(res, 200, 'ok');
     if (pathname === '/api/config') {
-      // Datos PÚBLICOS por diseño de Supabase (URL del proyecto y clave "anon"): la protección real son las reglas RLS de la base.
-      // Nunca se expone aquí una clave secreta (service_role). Si no están configurados, la web funciona sin cuentas.
-      const url = process.env.SUPABASE_URL || '', anonKey = process.env.SUPABASE_ANON_KEY || '';
-      const valid = /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url) && anonKey.length > 20 && !/service_role/i.test(Buffer.from(anonKey.split('.')[1] || '', 'base64').toString());
-      return send(res, 200, JSON.stringify(valid ? { url, anonKey } : {}), { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      // Solo indica si hay cuentas; la cadena de conexión a MongoDB nunca sale del servidor.
+      return send(res, 200, JSON.stringify({ accounts: accountsConfigured() }), { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     }
     if (pathname === '/api/news') {
       if (req.method === 'POST') {

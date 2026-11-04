@@ -678,37 +678,37 @@ function settings(){
     <label class="opt">Severidad<select id="ss">${opts(SEV_LABEL,s.severity)}</select></label>
     <label class="opt">Impacto en (horas)<input id="sd" type="number" min="0" max="72" value="${s.hours||30}" style="width:90px"></label>
     <div class="row" style="margin-top:8px"><button class="btn" onclick="startSim()">Activar</button><button class="btn ghost" onclick="stopSim()">Quitar</button></div></div>
-  <div class="card"><b>Datos y privacidad</b><p class="muted small">Sin cuenta, tu perfil y tu avance se guardan solo en este navegador. Si creas una cuenta (pestaña Perfil), se guardan también en tu cuenta, protegidos por reglas que solo te dejan ver tus propios datos; ahí mismo puedes descargarlos o eliminarlos. La página consulta NASA EONET y el servidor de Kairos (noticias oficiales y pronóstico de Open-Meteo); esas consultas solo indican la región, nunca datos de tu hogar. Si detectas tu zona, tu ubicación (redondeada a ~1 km) viaja en el cuerpo de una petición para consultar el Atlas Nacional de Riesgos del CENAPRED y no se guarda en el servidor ni en tu cuenta; en este navegador se recuerdan tu municipio, su grado de peligro y esa ubicación aproximada para medir distancias. Al pedir noticias solo se envía el nombre de tu municipio y estado.</p>
+  <div class="card"><b>Datos y privacidad</b><p class="muted small">Sin cuenta, tu perfil y tu avance se guardan solo en este navegador. Si creas una cuenta (pestaña Perfil), se guardan también en tu cuenta, y solo tú puedes verlos; ahí mismo puedes descargarlos o eliminarlos. La página consulta NASA EONET y el servidor de Kairos (noticias oficiales y pronóstico de Open-Meteo); esas consultas solo indican la región, nunca datos de tu hogar. Si detectas tu zona, tu ubicación (redondeada a ~1 km) viaja en el cuerpo de una petición para consultar el Atlas Nacional de Riesgos del CENAPRED y no se guarda en el servidor ni en tu cuenta; en este navegador se recuerdan tu municipio, su grado de peligro y esa ubicación aproximada para medir distancias. Al pedir noticias solo se envía el nombre de tu municipio y estado.</p>
     <button class="btn ghost" style="padding-left:0" onclick="resetAll()">Borrar mis datos</button></div>`;
 }
 
-/* ===== Cuenta (Supabase Auth + PostgREST con fetch; sin librerías) ===== */
-const AUTH={cfg:null,session:load('sb',null),mode:'in',msg:null,busy:false,syncState:null,confirmDelete:false};
-const signedIn=()=>!!(AUTH.cfg&&AUTH.session&&AUTH.session.user);
+/* ===== Cuenta (servidor de Kairos + MongoDB). La sesión es una cookie HttpOnly: el JavaScript de la página nunca ve el token. ===== */
+const AUTH={cfg:false,user:null,mode:'in',msg:null,busy:false,syncState:null,confirmDelete:false};
+const signedIn=()=>!!(AUTH.cfg&&AUTH.user);
+async function api(method,path,body){
+  const r=await fetch(path,{method,headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),credentials:'same-origin'});
+  let j=null; try{ j=await r.json(); }catch(e){}
+  return {ok:r.ok,status:r.status,j:j||{}};
+}
 async function loadAuthCfg(){
-  try{ const r=await fetch('/api/config'); if(r.ok){ const c=await r.json(); if(c.url&&c.anonKey&&/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(c.url)) AUTH.cfg=c; } }catch(e){}
-  if(AUTH.cfg&&AUTH.session) await cloudPull();
+  try{ const c=await (await fetch('/api/config')).json(); AUTH.cfg=!!c.accounts; }catch(e){}
+  if(AUTH.cfg) await cloudPull();
   render();
 }
-async function sb(path,opt={}){
-  const {method='GET',body,token=true,headers={}}=opt;
-  const go=()=>fetch(AUTH.cfg.url+path,{method,headers:{apikey:AUTH.cfg.anonKey,'Content-Type':'application/json',
-    ...(token&&AUTH.session?{Authorization:'Bearer '+AUTH.session.access_token}:{}),...headers},body:body===undefined?undefined:JSON.stringify(body)});
-  let r=await go();
-  if(r.status===401&&token&&AUTH.session&&AUTH.session.refresh_token&&await refreshSession()) r=await go();
-  return r;
+function applyCloud(d){
+  state.profile=cleanProfile(d.profile); state.done=(d.done&&typeof d.done==='object')?d.done:{};
+  if(d.region&&REGIONS[d.region]) state.region=d.region;
+  save('profile',state.profile); save('done',state.done); save('region',state.region);
 }
-function setSession(j){
-  AUTH.session={access_token:j.access_token,refresh_token:j.refresh_token,user:{id:j.user.id,email:j.user.email}};
-  save('sb',AUTH.session);
-}
-async function refreshSession(){
+async function cloudPull(){
   try{
-    const r=await fetch(AUTH.cfg.url+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{apikey:AUTH.cfg.anonKey,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:AUTH.session.refresh_token})});
-    if(!r.ok) throw 0; setSession(await r.json()); return true;
-  }catch(e){ AUTH.session=null; save('sb',null); return false; }
+    const r=await api('GET','/api/me');
+    if(r.status===401){ AUTH.user=null; return; }
+    if(!r.ok) throw 0;
+    AUTH.user={email:r.j.email};
+    if(r.j.data&&r.j.data.profile){ applyCloud(r.j.data); AUTH.syncState='ok'; } else await cloudPush();
+  }catch(e){ AUTH.syncState='error'; }
 }
-const authErr=async r=>{ try{ const j=await r.json(); const m=j.msg||j.error_description||j.message||''; return /invalid login/i.test(m)?'Correo o contraseña incorrectos.':/already|registered/i.test(m)?'Ese correo ya tiene cuenta. Inicia sesión.':/rate|too many/i.test(m)?'Demasiados intentos. Espera un minuto.':'No se pudo completar ('+(m||r.status)+').'; }catch(e){ return 'No se pudo completar ('+r.status+').'; } };
 function setAuthMode(m){ AUTH.mode=m; AUTH.msg=null; render(); }
 async function submitAuth(){
   const email=document.getElementById('aem').value.trim(), pw=document.getElementById('apw').value;
@@ -716,62 +716,43 @@ async function submitAuth(){
   if(pw.length<8) { AUTH.msg={bad:true,t:'La contraseña debe tener al menos 8 caracteres.'}; return render(); }
   AUTH.busy=true; AUTH.msg=null; render();
   try{
-    const up=AUTH.mode==='up';
-    const r=await sb(up?'/auth/v1/signup':'/auth/v1/token?grant_type=password',{method:'POST',token:false,body:{email,password:pw}});
-    if(!r.ok) AUTH.msg={bad:true,t:await authErr(r)};
-    else{
-      const j=await r.json();
-      if(j.access_token){ setSession(j); await cloudPull(); AUTH.mode='in'; }
-      else AUTH.msg={t:'Te enviamos un correo para confirmar tu cuenta. Ábrelo y luego inicia sesión.'};
-    }
-  }catch(e){ AUTH.msg={bad:true,t:'Sin conexión con el servicio de cuentas. Inténtalo de nuevo.'}; }
+    const r=await api('POST',AUTH.mode==='up'?'/api/auth/signup':'/api/auth/login',{email,password:pw});
+    if(!r.ok) AUTH.msg={bad:true,t:r.j.error||'No se pudo completar ('+r.status+').'};
+    else{ AUTH.user={email:r.j.email}; AUTH.mode='in'; await cloudPull(); }
+  }catch(e){ AUTH.msg={bad:true,t:'Sin conexión con el servidor. Inténtalo de nuevo.'}; }
   AUTH.busy=false; render();
 }
 async function signOut(){
-  try{ await sb('/auth/v1/logout',{method:'POST'}); }catch(e){}
-  AUTH.session=null; save('sb',null); AUTH.syncState=null;
-  clearLocalData();       // en un dispositivo compartido no debe quedar tu perfil
+  try{ await api('POST','/api/auth/logout',{}); }catch(e){}
+  AUTH.user=null; AUTH.syncState=null; clearLocalData();   // en un dispositivo compartido no debe quedar tu perfil
   render();
 }
 async function deleteAccount(){
   if(!AUTH.confirmDelete){ AUTH.confirmDelete=true; return render(); }
   AUTH.busy=true; render();
   try{
-    const r=await sb('/rest/v1/rpc/delete_my_account',{method:'POST',body:{}});
+    const r=await api('DELETE','/api/account');
     if(!r.ok) throw 0;
-    AUTH.session=null; save('sb',null); AUTH.syncState=null; clearLocalData(); AUTH.msg={t:'Tu cuenta y tus datos en la nube se eliminaron.'};
+    AUTH.user=null; AUTH.syncState=null; clearLocalData(); AUTH.msg={t:'Tu cuenta y tus datos en la nube se eliminaron.'};
   }catch(e){ AUTH.msg={bad:true,t:'No se pudo eliminar. Inténtalo de nuevo.'}; }
   AUTH.busy=false; AUTH.confirmDelete=false; render();
 }
 const cloudPayload=()=>({profile:state.profile,done:state.done,region:state.region});
-async function cloudPull(){
-  try{
-    const r=await sb('/rest/v1/profiles?select=data&limit=1');
-    if(!r.ok) throw 0;
-    const rows=await r.json();
-    if(rows[0]&&rows[0].data&&rows[0].data.profile){
-      const d=rows[0].data;
-      state.profile=cleanProfile(d.profile); state.done=(d.done&&typeof d.done==='object')?d.done:{};
-      if(d.region&&REGIONS[d.region]) state.region=d.region;
-      save('profile',state.profile); save('done',state.done); save('region',state.region);
-      AUTH.syncState='ok';
-    } else await cloudPush();
-  }catch(e){ AUTH.syncState='error'; }
-}
 let syncTimer=null;
 function queueSync(){ if(!signedIn()) return; AUTH.syncState='pending'; clearTimeout(syncTimer); syncTimer=setTimeout(cloudPush,900); }
 async function cloudPush(){
   if(!signedIn()) return;
   try{
-    const r=await sb('/rest/v1/profiles?on_conflict=user_id',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:{user_id:AUTH.session.user.id,data:cloudPayload()}});
+    const r=await api('PUT','/api/profile',{data:cloudPayload()});
+    if(r.status===401){ AUTH.user=null; AUTH.syncState=null; render(); return; }   // la sesión venció
     AUTH.syncState=r.ok?'ok':'error';
   }catch(e){ AUTH.syncState='error'; }
-  if(state.tab==='profile') { const el=document.getElementById('syncst'); if(el) el.innerHTML=syncLabel(); }
+  if(state.tab==='profile'){ const el=document.getElementById('syncst'); if(el) el.innerHTML=syncLabel(); }
 }
 const syncLabel=()=>AUTH.syncState==='ok'?'✓ Guardado en tu cuenta':AUTH.syncState==='pending'?'Guardando…':AUTH.syncState==='error'?'⚠ No se pudo guardar en la nube (se conserva en este navegador)':'';
 function exportData(){
   try{
-    const blob=new Blob([JSON.stringify({exportado:new Date().toISOString(),cuenta:signedIn()?AUTH.session.user.email:null,...cloudPayload(),zona:state.zone},null,2)],{type:'application/json'});
+    const blob=new Blob([JSON.stringify({exportado:new Date().toISOString(),cuenta:signedIn()?AUTH.user.email:null,...cloudPayload(),zona:state.zone},null,2)],{type:'application/json'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='kairos-mis-datos.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
   }catch(e){}
 }
@@ -810,12 +791,14 @@ function protectionPanel(){
   const cloud=!!AUTH.cfg;
   return `<div class="card prot"><div class="row" style="gap:10px"><span style="font-size:24px">🛡️</span><b style="font-size:18px">Cómo protegemos tus datos</b></div>
     ${cloud?`
-    ${shield(true,'<b>Solo tú ves tus datos.</b> La base de datos aplica reglas por usuario (Row Level Security): ninguna otra cuenta puede leer ni cambiar tu perfil, ni siquiera conociendo tu identificador.')}
-    ${shield(true,'<b>Tu contraseña no pasa por Kairos.</b> La gestiona el servicio de cuentas (Supabase Auth), que la guarda cifrada con hash. Nunca la vemos ni la guardamos.')}
-    ${shield(true,'<b>Conexión cifrada (HTTPS)</b> entre tu dispositivo, Kairos y la base de datos; los datos también se cifran en reposo en el proveedor.')}
+    ${shield(true,'<b>Solo tú ves tus datos.</b> Cada consulta del servidor se limita a tu sesión: ninguna otra cuenta puede leer ni cambiar tu perfil, aunque conozca tu correo.')}
+    ${shield(true,'<b>Tu contraseña está protegida.</b> Se guarda transformada con scrypt y una sal única: ni nosotros podemos leerla, y nunca queda en tu navegador.')}
+    ${shield(true,'<b>Tu sesión no se puede robar con scripts.</b> Va en una cookie protegida (HttpOnly, solo mismo sitio) que ningún código de la página puede leer. Caduca a los 30 días y se invalida al cerrar sesión.')}
+    ${shield(true,'<b>Conexión cifrada (HTTPS)</b> entre tu dispositivo, Kairos y la base de datos (MongoDB Atlas), que además cifra los datos en reposo.')}
+    ${shield(true,'<b>Protección contra adivinar contraseñas:</b> limitamos los intentos de inicio de sesión.')}
     ${shield(true,'<b>No vendemos ni compartimos</b> tus datos y no los usamos para publicidad. Solo sirven para personalizar tu plan.')}
     ${shield(true,'<b>Tú mandas:</b> puedes descargar todo lo que guardamos y eliminar tu cuenta y tus datos cuando quieras, desde aquí.')}
-    ${shield(false,'<b>Límite honesto:</b> no es cifrado de extremo a extremo. Quien administra el proyecto de Kairos podría ver la base de datos con credenciales de administrador. Por eso no pedimos datos de salud ni documentos, y el teléfono de contactos es opcional.')}`
+    ${shield(false,'<b>Límite honesto:</b> no es cifrado de extremo a extremo. Quien administra el servidor y la base de datos de Kairos podría ver los datos con sus credenciales de administrador. Por eso no pedimos datos de salud ni documentos, y el teléfono de contactos es opcional.')}`
     :`${shield(true,'<b>Tus datos se quedan en este navegador.</b> No hay cuenta ni base de datos configurada, así que nada de tu perfil sale de tu dispositivo.')}
     ${shield(false,'Si borras los datos del navegador o cambias de dispositivo, se pierden. Puedes descargarlos con el botón de abajo.')}`}
     ${shield(true,'<b>Tu ubicación</b> se redondea a ~1 km, se queda en tu navegador y nunca se guarda en nuestro servidor ni en tu cuenta.')}
@@ -825,7 +808,7 @@ function accountCard(){
   if(!AUTH.cfg) return `<div class="card"><b>Cuenta</b><p class="muted small">Las cuentas aún no están activadas en este servidor. Mientras tanto tu perfil se guarda en este navegador.</p></div>`;
   const m=AUTH.msg?`<div class="note ${AUTH.msg.bad?'bad':''}">${esc(AUTH.msg.t)}</div>`:'';
   if(signedIn()) return `<div class="card"><div class="row"><b style="flex:1">Tu cuenta</b><span id="syncst" class="muted small">${syncLabel()}</span></div>
-    <div style="margin:8px 0;font-weight:600">${esc(AUTH.session.user.email)}</div>${m}
+    <div style="margin:8px 0;font-weight:600">${esc(AUTH.user.email)}</div>${m}
     <div class="muted small">Tu perfil se sincroniza con tu cuenta y está disponible en cualquier dispositivo donde inicies sesión.</div>
     <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap"><button class="btn ghost" onclick="exportData()">Descargar mis datos</button><button class="btn ghost" onclick="signOut()">Cerrar sesión</button></div>
     <div style="margin-top:6px">${AUTH.confirmDelete?`<div class="note bad">Se eliminará tu cuenta y todos tus datos de la nube. No se puede deshacer.</div>

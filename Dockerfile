@@ -1,7 +1,8 @@
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
-COPY package.json ./
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 COPY server ./server
 COPY web ./web
 # Render define PORT (10000 por defecto); el servidor la lee de la variable de entorno.

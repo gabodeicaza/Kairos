@@ -9,7 +9,5 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_ANON_KEY
+      - key: MONGODB_URI
         sync: false
