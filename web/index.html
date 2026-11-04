@@ -121,6 +121,16 @@ nav button.on{color:var(--accent)}
 .news .nb{flex:1;min-width:0}
 .news .nt{font-weight:600;font-size:15px;line-height:1.3;margin:8px 0 6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .news img{width:76px;height:76px;border-radius:18px;object-fit:cover;flex:none;background:#EEF0F5}
+
+/* Pronóstico */
+.fc{padding:20px 18px}
+.fcnow{font-size:46px;font-weight:600;letter-spacing:-2px;line-height:1.1;display:flex;align-items:center;gap:8px}
+.fcnow span{font-size:34px;letter-spacing:0}
+.fcdays{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:14px}
+.fcd{border-radius:18px;padding:10px 2px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:2px}
+.fci{font-size:24px;line-height:1.3}
+.fctags{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.fctags .pill{font-size:12px;padding:6px 12px;line-height:1.3}
 </style>
 </head>
 <body>
@@ -310,6 +320,68 @@ function header(){
 }
 const scene=(label,color,fn)=>`<button class="scene" style="background:${color}" onclick="${fn}">${label}</button>`;
 
+/* ===== Pronóstico de calor y lluvia (/api/forecast, datos de Open-Meteo) ===== */
+state.forecast={data:null,loading:true,error:false};
+async function refreshForecast(){
+  state.forecast.loading=true; state.forecast.error=false; render();
+  try{
+    const r=await fetch('/api/forecast?region='+encodeURIComponent(state.region)); if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json(); if(!Array.isArray(d.days)||!d.days.length) throw new Error('sin datos'); state.forecast.data=d;
+  }catch(e){ state.forecast.error=true; state.forecast.data=null; }
+  state.forecast.loading=false; render();
+}
+/* Código WMO de Open-Meteo -> icono y texto */
+function wx(code){
+  if(code==null) return ['·','Sin dato'];
+  if(code===0) return ['☀️','Despejado'];
+  if(code<=2) return ['🌤️','Poco nublado'];
+  if(code===3) return ['☁️','Nublado'];
+  if(code===45||code===48) return ['🌫️','Niebla'];
+  if(code<=57) return ['🌦️','Llovizna'];
+  if(code<=67) return ['🌧️','Lluvia'];
+  if(code<=77) return ['❄️','Nieve'];
+  if(code<=82) return ['🌧️','Chubascos'];
+  if(code>=95) return ['⛈️','Tormenta'];
+  return ['☁️','Nublado'];
+}
+/* Umbrales simples sobre sensación térmica máxima y lluvia acumulada del día */
+function heatLevel(d){ const t=d.feelsMax!=null?d.feelsMax:d.max; return t==null?0:t>=40?2:t>=35?1:0; }
+function rainLevel(d){ const r=d.rain||0, p=d.prob||0; return r>=50?3:r>=20?2:(r>=5&&p>=60)?1:0; }
+function forecastSection(){
+  const f=state.forecast;
+  let h=`<div class="newshead"><h2>Pronóstico de calor y lluvia</h2><button class="lnk" onclick="refreshForecast()">Actualizar</button></div>`;
+  if(f.loading&&!f.data) return h+`<div class="card muted">Cargando pronóstico…</div>`;
+  if(f.error||!f.data) return h+`<div class="card muted">No se pudo cargar el pronóstico. <button class="btn ghost" onclick="refreshForecast()">Reintentar</button></div>`;
+  const d=f.data, cur=d.current||{}, [ic,txt]=wx(cur.code);
+  const wd=(iso,i)=>i===0?'Hoy':new Date(iso+'T12:00:00').toLocaleDateString('es-MX',{weekday:'short'}).replace('.','');
+  const r0=v=>v==null?'–':Math.round(v);
+  // Agrupa los días por tipo de aviso para no repetir etiquetas.
+  const names=d.days.map((x,i)=>wd(x.date,i)), join=a=>a.length>1?a.slice(0,-1).join(', ')+' y '+a[a.length-1]:a[0];
+  const pick=(fn)=>d.days.map((x,i)=>fn(x)?i:-1).filter(i=>i>=0);
+  const tags=[];
+  const extreme=pick(x=>heatLevel(x)===2), high=pick(x=>heatLevel(x)===1);
+  const maxFeels=Math.max(...d.days.map(x=>x.feelsMax==null?-99:x.feelsMax));
+  if(extreme.length) tags.push(['🔥',`Calor extremo: ${join(extreme.map(i=>names[i]))} (sensación hasta ${r0(maxFeels)}°)`,'#E8261C']);
+  if(high.length) tags.push(['🌡️',`Calor alto: ${join(high.map(i=>names[i]))}${extreme.length?'':' (sensación hasta '+r0(maxFeels)+'°)'}`,'#FF7A00']);
+  const strong=pick(x=>rainLevel(x)>=2), likely=pick(x=>rainLevel(x)===1);
+  if(strong.length) tags.push(['🌧️',`Lluvia fuerte: ${join(strong.map(i=>names[i]+' '+r0(d.days[i].rain)+' mm'))}`,'#2F6BFF']);
+  if(likely.length) tags.push(['🌦️',`Lluvia probable: ${join(likely.map(i=>names[i]+' '+r0(d.days[i].rain)+' mm'))}`,'#3A94D0']);
+  h+=`<div class="card fc"><div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div><div class="muted small">${esc(d.place)} · ahora</div><div class="fcnow">${r0(cur.temp)}°<span>${ic}</span></div>
+      <div class="muted small">${txt}${cur.feels!=null?' · sensación '+r0(cur.feels)+'°':''}</div></div>
+      ${pill('5 DÍAS','#FF5B1F')}</div>
+    <div class="fcdays">`+d.days.map((x,i)=>{
+      const hl=heatLevel(x), rl=rainLevel(x), [dic]=wx(x.code);
+      const bg=hl?(hl===2?'#FFE3E1':'#FFF0DD'):rl?'#E6F0FF':'#F3F4F8';
+      return `<div class="fcd" style="background:${bg}"><div class="small muted">${wd(x.date,i)}</div><div class="fci">${dic}</div>
+        <b>${r0(x.max)}°</b><div class="small muted">${r0(x.min)}°</div><div class="small" style="color:#2F6BFF">💧${r0(x.rain)}</div></div>`;
+    }).join('')+`</div>`+
+    (tags.length?`<div class="fctags">`+tags.map(([i,t,c])=>`<span class="pill" style="background:${c}1F;color:${c}">${i} ${esc(t)}</span>`).join('')+`</div>`
+      :`<div class="muted small" style="margin-top:12px">Sin calor extremo ni lluvia fuerte en los próximos 5 días.</div>`)+
+    `<div class="muted small" style="margin-top:12px">Lluvia en mm por día. Calor según sensación térmica. Datos: <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo.com</a> (CC BY 4.0). Es un pronóstico de referencia: sigue siempre los avisos oficiales.</div></div>`;
+  return h;
+}
+
 /* ===== Noticias oficiales (/api/news, las agrega el servidor de Kairos) ===== */
 const KIND_COLOR={'proteccion-civil':'#E8261C',gobierno:'#1F8B5F',nasa:'#2F6BFF',noaa:'#6A55D3',gdacs:'#0E8F9E'};
 const KIND_LABEL={'proteccion-civil':'Protección Civil',gobierno:'Gobierno de México',nasa:'NASA',noaa:'NOAA',gdacs:'GDACS (ONU/UE)'};
@@ -359,10 +431,11 @@ function home(){
       <div class="big">Todo en calma</div>
       <div class="stats3"><div><b>0</b><span>Alertas activas</span></div><div><b>NASA</b><span>Fuente de datos</span></div>
       <div><b style="color:${state.loading?'#FF9D00':'#22B07D'}">${state.loading?'…':'OK'}</b><span>${state.loading?'Buscando':'Sin riesgo'}</span></div></div></div>
-      <div class="scenes">${scene('Simular alerta',"#6A55D3","go('settings')")}${scene('Actualizar',"#3A94D0",'refreshReal();refreshNews()')}${scene('Mi hogar',"#22B07D","go('settings')")}</div>
+      <div class="scenes">${scene('Simular alerta',"#6A55D3","go('settings')")}${scene('Actualizar',"#3A94D0",'refreshReal();refreshNews();refreshForecast()')}${scene('Mi hogar',"#22B07D","go('settings')")}</div>
       <div class="two"><div class="card"><div class="ttl">Prepárate</div><div class="val">72<small> h</small></div><div class="muted small mini">Kit de emergencia familiar para tres días.</div></div>
       <div class="card"><div class="ttl">Ruta segura</div><div class="val">1<small> plan</small></div><div class="muted small mini">Ubica tu refugio y tu ruta a zona alta.</div></div></div>`;
-    h+=newsSection();
+    h+=forecastSection();
+  h+=newsSection();
     return h;
   }
   const a=t.alert, steps=t.steps, total=Math.max(1,steps.length), done=doneCount(t);
@@ -395,6 +468,7 @@ function home(){
         <circle cx="${8+104*p3}" cy="${34-22*p3}" r="6" fill="#fff" stroke="#F0362B" stroke-width="3"/></svg></div>
       <div class="card"><div class="ttl">Por hacer ahora</div><div class="val">${rem}<small> min</small></div>
         <div class="mini row" style="gap:0"><svg width="84" height="64" viewBox="0 0 84 64"><circle cx="42" cy="20" r="18" fill="#FF8A2A"/><circle cx="25" cy="42" r="18" fill="#8B5CF6"/><circle cx="59" cy="42" r="18" fill="#2CC9B5"/></svg></div></div></div>`;
+  h+=forecastSection();
   h+=newsSection();
   return h;
 }
@@ -455,14 +529,14 @@ function settings(){
     <label class="opt">Severidad<select id="ss">${opts(SEV_LABEL,s.severity)}</select></label>
     <label class="opt">Impacto en (horas)<input id="sd" type="number" min="0" max="72" value="${s.hours||30}" style="width:90px"></label>
     <div class="row" style="margin-top:8px"><button class="btn" onclick="startSim()">Activar</button><button class="btn ghost" onclick="stopSim()">Quitar</button></div></div>
-  <div class="card"><b>Datos y privacidad</b><p class="muted small">Tu perfil y tu avance se guardan solo en este navegador y no se envían a ningún servidor. La página consulta NASA EONET y el servidor de Kairos, que reúne noticias oficiales; esas consultas no incluyen datos de tu hogar.</p>
+  <div class="card"><b>Datos y privacidad</b><p class="muted small">Tu perfil y tu avance se guardan solo en este navegador y no se envían a ningún servidor. La página consulta NASA EONET y el servidor de Kairos, que reúne noticias oficiales y el pronóstico de Open-Meteo; esas consultas solo indican la región piloto, nunca datos de tu hogar.</p>
     <button class="btn ghost" style="padding-left:0" onclick="resetAll()">Borrar mis datos</button></div>`;
 }
 
 /* ===== Acciones ===== */
 function go(tab,filter){ state.tab=tab; if(filter!==undefined) state.planFilter=filter; scrollTo(0,0); render(); }
 function toggle(aid,sid){ const k=aid+':'+sid; if(state.done[k]) delete state.done[k]; else state.done[k]=true; save('done',state.done); render(); }
-function setRegion(r){ state.region=r; save('region',r); refreshReal(); }
+function setRegion(r){ state.region=r; save('region',r); refreshReal(); refreshForecast(); }
 function setProfile(k,v){ state.profile[k]=v; save('profile',state.profile); }
 function setZone(v){ state.zoneHigh=v; save('zoneHigh',v); }
 function startSim(){
@@ -476,7 +550,7 @@ function resetAll(){ ['done','sim','profile','zoneHigh','region'].forEach(k=>{tr
   state.done={};state.sim=null;state.profile={groundFloor:false,hasChildren:false,hasElderly:false,hasPets:false};state.zoneHigh=false; render(); }
 
 setInterval(()=>{ state.now=Date.now(); if(state.tab!=='settings') render(); },60000);
-render(); refreshReal(); refreshNews();
+render(); refreshReal(); refreshNews(); refreshForecast();
 </script>
 </body>
 </html>
