@@ -4,7 +4,7 @@
 const UA = 'KairosNewsBot/1.0 (+https://github.com/gabodeicaza/Kairos)';
 const TTL_MS = 10 * 60 * 1000;
 const TIMEOUT_MS = 12_000;
-const ALLOWED_HOSTS = /(^|\.)(gob\.mx|nasa\.gov|noaa\.gov)$/i;
+const ALLOWED_HOSTS = /(^|\.)(gob\.mx|nasa\.gov|noaa\.gov|gdacs\.org)$/i;
 
 // Temas del producto: huracán/tormenta, inundación, calor extremo, escasez de agua + protección civil.
 const MX_TOPICS = /hurac[aá]n|cicl[oó]n|tormenta|lluvia|inundaci|calor|sequ[ií]a|\bagua\b|sismo|protecci[oó]n civil|cnpc|cenapred|alerta|emergencia|autocuidado|temporada|oleaje|incendio|frente fr[ií]o|desastre|damnificad/i;
@@ -69,7 +69,51 @@ const gob = (agency, pages) => async () => {
   return lists.flat();
 };
 
+/* ---------- GDACS (ONU + Comisión Europea): ciclones, inundaciones y sismos con semáforo de alerta ---------- */
+// Recuadro que cubre México, el Pacífico oriental, el Golfo y el Caribe.
+const REGION = { minLon: -125, maxLon: -60, minLat: 5, maxLat: 35 };
+const inRegion = (lon, lat) => lon >= REGION.minLon && lon <= REGION.maxLon && lat >= REGION.minLat && lat <= REGION.maxLat;
+const GDACS_TYPE = { TC: 'Ciclón tropical', FL: 'Inundación', EQ: 'Sismo' };
+const GDACS_LEVEL = { Green: 'verde', Orange: 'naranja', Red: 'roja' };
+
+async function loadGdacs() {
+  const json = JSON.parse(await get('https://www.gdacs.org/gdacsapi/api/events/geteventlist/EVENTS4APP?eventlist=TC,FL,EQ&alertlevel=Green;Orange;Red'));
+  return (json.features || []).flatMap((f) => {
+    const p = f.properties || {};
+    const [lon, lat] = (f.geometry && f.geometry.coordinates) || [];
+    if (!GDACS_TYPE[p.eventtype] || String(p.iscurrent) !== 'true') return [];
+    if (!(inRegion(lon, lat) || /m[eé]xico/i.test(p.country || ''))) return [];
+    const date = new Date(`${p.datemodified || p.fromdate}Z`); // GDACS entrega UTC sin zona
+    const name = p.eventtype === 'TC' && p.eventname ? ` ${p.eventname}` : '';
+    return [{
+      title: `${GDACS_TYPE[p.eventtype]}${name} · ${p.country || 'región'} · alerta ${GDACS_LEVEL[p.alertlevel] || p.alertlevel}`,
+      link: p.url && p.url.report, date: isNaN(date) ? null : date.toISOString(),
+      summary: String(p.htmldescription || p.description || '').slice(0, 220),
+    }];
+  });
+}
+
+/* ---------- Tormentas activas del Centro Nacional de Huracanes (NOAA) ---------- */
+const NHC_CLASS = { TD: 'Depresión tropical', STD: 'Depresión subtropical', TS: 'Tormenta tropical', STS: 'Tormenta subtropical', HU: 'Huracán', PTC: 'Ciclón postropical' };
+async function loadNhcActive() {
+  const json = JSON.parse(await get('https://www.nhc.noaa.gov/CurrentStorms.json'));
+  return (json.activeStorms || []).flatMap((s) => {
+    const lat = Number(s.latitudeNumeric ?? s.latitude), lon = Number(s.longitudeNumeric ?? s.longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lon) && !inRegion(lon, lat)) return [];
+    const date = new Date(s.lastUpdate || Date.now());
+    const wind = s.intensity ? ` · vientos de ${s.intensity} nudos` : '';
+    return [{
+      title: `${NHC_CLASS[s.classification] || 'Ciclón tropical'} ${s.name || ''}${wind}`.trim(),
+      link: (s.publicAdvisory && s.publicAdvisory.url) || 'https://www.nhc.noaa.gov/',
+      date: isNaN(date) ? new Date().toISOString() : date.toISOString(),
+      summary: 'Tormenta activa reportada por el Centro Nacional de Huracanes.',
+    }];
+  });
+}
+
 const SOURCES = [
+  { id: 'nhc-active', name: 'NOAA · Tormentas activas (NHC)', kind: 'noaa', lang: 'es', max: 5, base: 'https://www.nhc.noaa.gov', load: loadNhcActive, only: /./ },
+  { id: 'gdacs', name: 'GDACS · ONU y Comisión Europea', kind: 'gdacs', lang: 'es', max: 8, base: 'https://www.gdacs.org', load: loadGdacs, only: /./ },
   { id: 'cnpc', name: 'Protección Civil (CNPC)', kind: 'proteccion-civil', max: 8, topics: /cnpc|protecci[oó]n civil|cenapred|hurac[aá]n|cicl[oó]n|tormenta|lluvia|inundaci|sismo|calor|autocuidado|temporada|emergencia/i,
     // La CNPC publica sus comunicados dentro de la sección de la SSPC.
     load: gob('sspc', 3), only: /cnpc|protecci[oó]n civil|cenapred|hurac[aá]n|cicl[oó]n|tormenta|lluvia|inundaci|sismo|calor|autocuidado|temporada|oleaje/i },
@@ -99,7 +143,7 @@ async function loadSource(src) {
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, src.max)
       .map((i) => ({ id: `${src.id}:${i.link}`, title: i.title, link: i.link, date: i.date, summary: i.summary || '', image: i.image || null,
-        source: src.name, kind: src.kind, lang: src.kind === 'nasa' || src.kind === 'noaa' ? 'en' : 'es' }));
+        source: src.name, kind: src.kind, lang: src.lang || (src.kind === 'nasa' || src.kind === 'noaa' ? 'en' : 'es') }));
     stale.set(src.id, items);
     return { items };
   } catch (e) {

@@ -311,8 +311,8 @@ function header(){
 const scene=(label,color,fn)=>`<button class="scene" style="background:${color}" onclick="${fn}">${label}</button>`;
 
 /* ===== Noticias oficiales (/api/news, las agrega el servidor de Kairos) ===== */
-const KIND_COLOR={'proteccion-civil':'#E8261C',gobierno:'#1F8B5F',nasa:'#2F6BFF',noaa:'#6A55D3'};
-const KIND_LABEL={'proteccion-civil':'Protección Civil',gobierno:'Gobierno de México',nasa:'NASA',noaa:'NOAA'};
+const KIND_COLOR={'proteccion-civil':'#E8261C',gobierno:'#1F8B5F',nasa:'#2F6BFF',noaa:'#6A55D3',gdacs:'#0E8F9E'};
+const KIND_LABEL={'proteccion-civil':'Protección Civil',gobierno:'Gobierno de México',nasa:'NASA',noaa:'NOAA',gdacs:'GDACS (ONU/UE)'};
 state.news={items:[],loading:true,error:null,filter:'all',all:false};
 async function refreshNews(){
   state.news.loading=true; state.news.error=null; render();
@@ -332,7 +332,7 @@ function ago(iso){
 }
 function newsSection(){
   const n=state.news;
-  const kinds=[['all','Todas'],['proteccion-civil','Protección Civil'],['gobierno','Gobierno'],['nasa','NASA'],['noaa','NOAA']];
+  const kinds=[['all','Todas'],['proteccion-civil','Protección Civil'],['gobierno','Gobierno'],['nasa','NASA'],['noaa','NOAA'],['gdacs','GDACS']];
   let h=`<div class="newshead" id="news"><h2>Noticias oficiales</h2><button class="lnk" onclick="refreshNews()">Actualizar</button></div>
     <div class="tabs sm">`+kinds.map(([k,l])=>`<button class="${n.filter===k?'on':''}" onclick="setNewsFilter('${k}')">${l}</button>`).join('')+`</div>`;
   if(n.loading&&!n.items.length) return h+`<div class="card muted">Cargando noticias de fuentes oficiales…</div>`;
@@ -348,7 +348,7 @@ function newsSection(){
       ${img?`<img src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`:''}</a>`;
   }).join('');
   if(list.length>6) h+=`<button class="btn ghost" style="width:100%;margin-bottom:6px" onclick="state.news.all=!state.news.all;render()">${n.all?'Ver menos':'Ver todas ('+list.length+')'}</button>`;
-  return h+`<div class="muted small" style="margin:6px 4px 16px">Fuentes: gob.mx (Protección Civil, Conagua y Segob), NASA y NOAA. Se actualizan cada 10 minutos.</div>`;
+  return h+`<div class="muted small" style="margin:6px 4px 16px">Fuentes: gob.mx (Protección Civil, Conagua y Segob), NASA, NOAA y GDACS (ONU y Comisión Europea). Se actualizan cada 10 minutos.</div>`;
 }
 
 function home(){
