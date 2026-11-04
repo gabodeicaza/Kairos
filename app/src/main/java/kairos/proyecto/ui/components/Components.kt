@@ -1,7 +1,6 @@
 package kairos.proyecto.ui.components
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,14 +51,14 @@ fun ProgressRing(
 fun KCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    contentPadding: Dp = 16.dp,
+    contentPadding: Dp = 22.dp,
     content: @Composable () -> Unit,
 ) {
     val colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    val border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    val inner: @Composable () -> Unit = { Column(Modifier.padding(contentPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) { content() } }
-    if (onClick != null) Card(onClick, modifier, shape = MaterialTheme.shapes.large, colors = colors, border = border) { inner() }
-    else Card(modifier, shape = MaterialTheme.shapes.large, colors = colors, border = border) { inner() }
+    val elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    val inner: @Composable () -> Unit = { Column(Modifier.padding(contentPadding), verticalArrangement = Arrangement.spacedBy(10.dp)) { content() } }
+    if (onClick != null) Card(onClick, modifier, shape = MaterialTheme.shapes.large, colors = colors, elevation = elevation) { inner() }
+    else Card(modifier, shape = MaterialTheme.shapes.large, colors = colors, elevation = elevation) { inner() }
 }
 
 /** Etiqueta pequeña con fondo tenue del color indicado. */
@@ -87,7 +86,7 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier) {
 /** Dato grande con etiqueta pequeña, como las métricas de una pulsera de salud. */
 @Composable
 fun StatTile(value: String, label: String, color: Color, modifier: Modifier = Modifier) {
-    KCard(modifier, contentPadding = 14.dp) {
+    KCard(modifier, contentPadding = 18.dp) {
         Text(value, style = MaterialTheme.typography.titleLarge, color = color)
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }

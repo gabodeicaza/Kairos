@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -67,8 +68,8 @@ fun DashboardScreen(
 
     LazyColumn(
         Modifier.fillMaxWidth(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item { Header(state) }
         item { if (top != null) HeroCard(top, state, onOpenPlan = { onOpenPlan(null) }) else CalmCard(state) }
@@ -136,7 +137,7 @@ private fun HeroCard(item: AlertWithChecklist, state: UiState, onOpenPlan: () ->
     Box(
         Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large)
             .background(Brush.linearGradient(item.alert.severity.heroColors()))
-            .clickable(onClick = onOpenPlan).padding(20.dp),
+            .clickable(onClick = onOpenPlan).padding(28.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -148,7 +149,7 @@ private fun HeroCard(item: AlertWithChecklist, state: UiState, onOpenPlan: () ->
                 Text(item.alert.cleanHeadline(), style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.92f))
                 Text(timing, style = MaterialTheme.typography.titleSmall, color = Color.White)
             }
-            ProgressRing(done.toFloat() / total, Color.White, size = 84.dp, stroke = 9.dp, trackColor = Color.White.copy(alpha = 0.28f)) {
+            ProgressRing(done.toFloat() / total, Color.White, size = 96.dp, stroke = 10.dp, trackColor = Color.White.copy(alpha = 0.28f)) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("${done * 100 / total}%", style = MaterialTheme.typography.titleMedium, color = Color.White)
                     Text("listo", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.85f))
@@ -162,7 +163,7 @@ private fun HeroCard(item: AlertWithChecklist, state: UiState, onOpenPlan: () ->
 private fun CalmCard(state: UiState) {
     Box(
         Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large)
-            .background(Brush.linearGradient(Severity.GREEN.heroColors())).padding(20.dp),
+            .background(Brush.linearGradient(Severity.GREEN.heroColors())).padding(28.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Pill("TODO EN CALMA", Color.White.copy(alpha = 0.25f), filled = true)
@@ -226,17 +227,21 @@ private fun PhaseTimeline(item: AlertWithChecklist, state: UiState) {
 /** Cuadrícula 2×2 de módulos con anillo de avance; tocar uno abre el plan filtrado. */
 @Composable
 private fun ModuleGrid(state: UiState, onOpenPlan: (StepCategory?) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         StepCategory.entries.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 row.forEach { cat ->
                     val (done, total) = categoryProgress(state.items, state.completed, cat)
                     KCard(Modifier.weight(1f), onClick = { onOpenPlan(cat) }) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            ProgressRing(if (total == 0) 0f else done.toFloat() / total, cat.accent(), size = 52.dp, stroke = 6.dp) {
-                                Text("$done/$total", style = MaterialTheme.typography.labelSmall)
+                        Column(
+                            Modifier.fillMaxWidth().heightIn(min = 140.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+                        ) {
+                            ProgressRing(if (total == 0) 0f else done.toFloat() / total, cat.accent(), size = 76.dp, stroke = 9.dp) {
+                                Text("$done/$total", style = MaterialTheme.typography.titleSmall)
                             }
-                            Text(cat.label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                            Text(cat.label, style = MaterialTheme.typography.titleSmall, color = cat.accent())
                         }
                     }
                 }

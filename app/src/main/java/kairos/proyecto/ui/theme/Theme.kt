@@ -49,9 +49,9 @@ private val DarkColors = darkColorScheme(
 )
 
 private val KairosShapes = Shapes(
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(20.dp),
-    large = RoundedCornerShape(28.dp),
+    small = RoundedCornerShape(16.dp),
+    medium = RoundedCornerShape(24.dp),
+    large = RoundedCornerShape(32.dp),
 )
 
 /** Sin colores dinámicos a propósito: la paleta de severidad y de módulos debe verse igual en todos los teléfonos. */
