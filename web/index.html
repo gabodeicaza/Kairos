@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kairos</title>
+<style>
+:root{
+  --brand:#1F6BFF; --bg:#EAF1FF; --surface:#fff; --text:#111827; --muted:#5B6575; --track:#dfe7f6;
+  --green:#12C27E; --yellow:#FFB800; --orange:#FF7A00; --red:#FF3B4A;
+  --c-safety:#1F8BFF; --c-assets:#8B5CF6; --c-pets:#FF7A1A; --c-shelter:#00C2B3;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#0E1116; --surface:#181C24; --text:#E8ECF2; --muted:#9AA5B8; --track:#2A3140; --brand:#7FA8FF; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{max-width:480px;margin:0 auto;min-height:100vh;padding:20px 20px 100px}
+h1{font-size:28px;margin:0 0 6px;font-weight:800}
+h2{font-size:17px;margin:22px 0 12px;font-weight:700}
+.card{background:var(--surface);border-radius:32px;padding:22px;box-shadow:0 6px 18px rgba(20,40,90,.10);margin-bottom:18px}
+.row{display:flex;gap:10px;align-items:center}
+.pill{display:inline-block;border-radius:50px;padding:4px 10px;font-size:11px;font-weight:600;letter-spacing:.4px}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.hero{border-radius:32px;padding:28px;color:#fff;margin-bottom:18px;cursor:pointer}
+.hero h3{margin:8px 0 4px;font-size:22px}
+.ring{position:relative;width:var(--s,76px);height:var(--s,76px);flex:none}
+.ring svg{transform:rotate(-90deg)}
+.ring .in{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.mod{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:140px;margin:0;cursor:pointer;text-align:center;font-weight:600}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.stats .card{padding:16px;margin:0}
+.stats b{font-size:20px;display:block}
+.btn{border:0;border-radius:50px;padding:10px 22px;font:inherit;font-weight:600;background:var(--brand);color:#fff;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--brand)}
+.tl{display:flex;gap:8px}
+.tl div{flex:1;border-radius:20px;padding:10px;font-size:12px}
+.tl i{display:block;width:10px;height:10px;border-radius:50%;margin-bottom:4px}
+.step{display:flex;gap:12px;align-items:flex-start;padding:14px 0;border-top:1px solid var(--track)}
+.step:first-child{border-top:0}
+.step input{width:22px;height:22px;margin-top:2px;accent-color:var(--brand)}
+.step.done .t{text-decoration:line-through;opacity:.55}
+.step.locked{opacity:.5}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.chip{border:0;border-radius:50px;padding:8px 14px;font:inherit;font-size:13px;font-weight:600;background:var(--surface);color:var(--text);cursor:pointer}
+.chip.on{background:var(--brand);color:#fff}
+nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);box-shadow:0 -4px 16px rgba(20,40,90,.10)}
+nav div{max-width:480px;margin:0 auto;display:flex}
+nav button{flex:1;border:0;background:none;padding:12px 0 14px;font:inherit;font-size:12px;color:var(--muted);cursor:pointer}
+nav button.on{color:var(--brand);font-weight:700}
+nav button span{display:block;font-size:20px}
+label.opt{display:flex;justify-content:space-between;align-items:center;padding:10px 0}
+select,input[type=number]{font:inherit;padding:8px 12px;border-radius:14px;border:1px solid var(--track);background:var(--surface);color:var(--text)}
+input[type=checkbox].sw{width:22px;height:22px;accent-color:var(--brand)}
+a{color:var(--brand)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<nav><div id="nav"></div></nav>
+
+<script>
+/* ===== Modelo (espejo de Models.kt) ===== */
+const HAZARDS = {HURRICANE:'Huracán / tormenta tropical', FLOOD:'Inundación', EXTREME_HEAT:'Calor extremo', WATER_SCARCITY:'Escasez hídrica'};
+const SEV = ['GREEN','YELLOW','ORANGE','RED'];
+const SEV_LABEL = {GREEN:'Verde',YELLOW:'Amarilla',ORANGE:'Naranja',RED:'Roja'};
+const SEV_ACCENT = {GREEN:'#12C27E',YELLOW:'#FFB800',ORANGE:'#FF7A00',RED:'#FF3B4A'};
+const SEV_HERO = {
+  GREEN:['#0BA36B','#2EE59D'], YELLOW:['#D99100','#FFC53D'], ORANGE:['#E85D00','#FF9A2E'], RED:['#D91E36','#FF5A6A']};
+const CATS = {SAFETY:'Seguridad personal', ASSETS:'Aseguramiento de bienes', PETS:'Planes para mascotas', SHELTER:'Alternativas de refugio'};
+const CAT_COLOR = {SAFETY:'#1F8BFF', ASSETS:'#8B5CF6', PETS:'#FF7A1A', SHELTER:'#00C2B3'};
+const PHASES = ['ONGOING','EARLY','MINUS_12','MINUS_2','POST_IMPACT'];
+const PHASE_LABEL = {ONGOING:'Durante la alerta',EARLY:'Preparación',MINUS_12:'Fase -12 horas',MINUS_2:'Fase -2 horas',POST_IMPACT:'Post-impacto'};
+const REGIONS = {
+  'sw-guerrero': {name:'Suroeste (Acapulco, Guerrero)', box:[-106,14,-96,20]},
+  'ne-tamaulipas-nl': {name:'Noreste (Tamaulipas y Monterrey)', box:[-101.5,22,-93,28]},
+};
+const HOUR = 3600000, MIN = 60000;
+
+/* ===== Reglas (espejo de ChecklistEngine.kt) ===== */
+const ALL = Object.keys(HAZARDS), WATER=['HURRICANE','FLOOD'], STORM=['HURRICANE'], FLOODH=['FLOOD'], HEAT=['EXTREME_HEAT'], SCAR=['WATER_SCARCITY'];
+const NOT_SCAR = ALL.filter(h=>h!=='WATER_SCARCITY');
+const S='SAFETY',A='ASSETS',P='PETS',H='SHELTER';
+const prod=(n,price)=>({name:n,price});
+const KIT=prod('Kit de emergencia familiar 72 h',1250), SHUT=prod('Tormenteras para ventanas (juego)',2300),
+      BARR=prod('Barrera anti-inundación para puerta',1890), TANK=prod('Bidones de agua de 20 L (x4) con filtro',980);
+const st=(id,title,detail,pri,min,hb,cat=S,product=null)=>({id,title,detail,pri,min,hb,cat,product});
+const R=(hz,sev,step,o={})=>({hz,sev:SEV.indexOf(sev),step,when:o.when||null,post:!!o.post});
+const RULES=[
+ R(NOT_SCAR,'GREEN',st('kit','Revisa tu kit de emergencia','Agua (3 L por persona al día), alimentos no perecederos, linterna, botiquín y radio de pilas.',5,30,72,S,KIT)),
+ R(NOT_SCAR,'YELLOW',st('charge','Carga celulares y baterías externas','Deja los equipos al 100 % y baja el brillo de pantalla.',4,15,24)),
+ R(STORM,'YELLOW',st('secure-outdoor','Asegura objetos en patio y azotea','Tinacos, macetas, láminas y muebles ligeros pueden volverse proyectiles.',4,30,24,A)),
+ R(STORM,'YELLOW',st('shutters','Protege ventanas y puertas','Cubre los vidrios con tormenteras o madera y cierra bien puertas.',3,60,24,A,SHUT)),
+ R(FLOODH,'YELLOW',st('flood-route','Ubica tu ruta a zona alta','Evita cauces, arroyos y calles que se anegan.',4,20,24,H)),
+ R(WATER,'ORANGE',st('docs','Guarda documentos en bolsa impermeable','Identificaciones, escrituras, póliza de seguro y recetas.',3,15,12,A)),
+ R(WATER,'ORANGE',st('route','Confirma tu ruta al refugio oficial','Identifica el refugio temporal más cercano y una ruta alterna hacia zona alta.',3,20,12,H)),
+ R(WATER,'ORANGE',st('alt-shelter','Elige un refugio alterno','Casa de un familiar o vecino en zona alta, por si el refugio oficial se llena.',3,15,12,H)),
+ R(WATER,'RED',st('utilities','Corta gas y electricidad','Hazlo antes de salir o si el agua empieza a entrar a la vivienda.',2,10,3)),
+ R(WATER,'RED',st('evacuate','Evacúa al refugio indicado por Protección Civil','Sal con tu mochila de emergencia y sigue las rutas oficiales.',1,60,6,H)),
+ R(STORM,'RED',st('shelter-in-place','Si no evacuaste, resguárdate lejos de ventanas','Ve al cuarto interior más resistente, con tu mochila y agua. No salgas durante el ojo del huracán.',1,10,2,H)),
+ R(FLOODH,'RED',st('flood-high','Sube al nivel más alto y no cruces corrientes','Treinta centímetros de agua en movimiento pueden arrastrarte.',1,10,2)),
+ R(HEAT,'YELLOW',st('hydrate','Aumenta hidratación y evita el sol','Evita actividad al aire libre de 11:00 a 17:00.',3,10,0)),
+ R(HEAT,'ORANGE',st('cool-room','Prepara un espacio fresco en casa','Cierra cortinas de día y ventila de noche.',2,30,0)),
+ R(HEAT,'RED',st('heat-center','Acude a un centro de enfriamiento o a un lugar con clima','Si tu casa supera 32 °C en el interior, pasa las horas de más calor fuera de ella.',1,45,0,H)),
+ R(SCAR,'YELLOW',st('ws-store','Almacena agua: 3 L por persona al día','Apunta a una reserva para 7 días en recipientes limpios y tapados.',2,30,0,A,TANK)),
+ R(SCAR,'YELLOW',st('ws-reduce','Reduce el consumo del hogar','Regadera de 4 minutos, reutiliza agua de lavado y revisa fugas.',4,15,0)),
+ R(SCAR,'ORANGE',st('ws-supply','Ubica pipas y puntos de abasto','Anota los horarios de tandeo y los puntos de reparto cercanos.',2,20,0,H)),
+ R(SCAR,'RED',st('ws-priority','Prioriza agua para beber y cocinar','Suspende lavado de autos, riego y limpieza con manguera.',1,10,0)),
+ R(WATER,'YELLOW',st('ground-lift','Sube enseres y documentos a un nivel alto','Tu vivienda en planta baja es la primera en inundarse: eleva electrodomésticos, colchones y papeles.',2,45,18,A),{when:p=>p.groundFloor}),
+ R(WATER,'ORANGE',st('flood-barrier','Instala barreras anti-inundación','Coloca barreras en puertas y rejillas para frenar la entrada de agua.',2,60,18,A,BARR),{when:p=>p.groundFloor}),
+ R(WATER,'ORANGE',st('ground-relocate','Planea salir de la planta baja','Acuerda con un vecino de piso alto o ve al refugio antes de que suba el nivel del agua.',1,30,12,H),{when:p=>p.groundFloor}),
+ R(WATER,'YELLOW',st('kids-bag','Prepara la mochila de las niñas y niños','Agua, comida, ropa seca, medicinas, copia de acta y una cobija o juguete.',3,20,24),{when:p=>p.hasChildren}),
+ R(WATER,'ORANGE',st('kids-meeting','Define un punto de reunión familiar','Que todos lo conozcan; avisa a la escuela y a un familiar fuera de la zona.',2,15,12),{when:p=>p.hasChildren}),
+ R(STORM,'RED',st('kids-calm','Mantén a las niñas y niños contigo','Quédense juntos en el cuarto seguro; usa su juguete y su mochila para mantener la calma.',2,5,2),{when:p=>p.hasChildren}),
+ R(HEAT,'ORANGE',st('heat-kids','Hidrata a las niñas y niños cada hora','Nunca los dejes solos en un vehículo y evita juegos al sol directo.',1,10,0),{when:p=>p.hasChildren}),
+ R(ALL,'YELLOW',st('elder-meds','Reúne medicinas para al menos 72 horas','Incluye recetas, equipo médico cargado y lentes.',2,25,36),{when:p=>p.hasElderly}),
+ R(WATER,'ORANGE',st('elder-transfer','Organiza su traslado con anticipación','Requiere más tiempo: pide ayuda a vecinos o a Protección Civil y sal antes de la alerta roja.',1,40,18,H),{when:p=>p.hasElderly}),
+ R(HEAT,'ORANGE',st('heat-elder','Revísalas cada 2 horas por golpe de calor','Mareo, confusión o piel seca y caliente: llévalas a la sombra y pide ayuda médica.',1,10,0),{when:p=>p.hasElderly}),
+ R(SCAR,'ORANGE',st('ws-vulnerable','Reserva primero el agua para niñez y adultos mayores','Aparta su agua de beber antes de cualquier otro uso.',2,10,0),{when:p=>p.hasElderly||p.hasChildren}),
+ R(WATER,'YELLOW',st('pets-kit','Prepara el kit de tu mascota','Alimento y agua para 3 días, correa, transportadora, cartilla y una foto reciente.',3,20,24,P),{when:p=>p.hasPets}),
+ R(WATER,'ORANGE',st('pets-shelter','Ubica refugios que admitan mascotas','Muchos refugios no las aceptan: confirma uno o un familiar que pueda recibirla.',2,20,12,P),{when:p=>p.hasPets}),
+ R(WATER,'RED',st('pets-carrier','Ten a tu mascota en su transportadora, contigo','Con collar e identificación, lista para salir si evacúas.',2,5,2,P),{when:p=>p.hasPets}),
+ R(HEAT,'YELLOW',st('heat-pets','Protege a tu mascota del calor','Agua fresca siempre, sombra y paseos solo temprano o de noche.',3,10,0,P),{when:p=>p.hasPets}),
+ R(SCAR,'YELLOW',st('ws-pets','Aparta agua para tu mascota','Calcula su consumo diario dentro de tu reserva.',3,5,0,P),{when:p=>p.hasPets}),
+ R(WATER,'YELLOW',st('post-safe','Avisa a tu familia que estás bien','Mensajes cortos; las llamadas pueden saturar la red.',1,5,0),{post:true}),
+ R(WATER,'YELLOW',st('post-hazards','Evita agua estancada y cables caídos','No camines ni manejes por zonas inundadas ni toques instalaciones eléctricas mojadas.',1,5,0),{post:true}),
+ R(WATER,'ORANGE',st('post-water','Hierve o clora el agua antes de beber','Hierve el agua 1 minuto o usa gotas de cloro apto para consumo.',2,15,0),{post:true}),
+ R(WATER,'YELLOW',st('post-damage','Documenta daños con fotos y video','Útil para tu seguro y para solicitar apoyos antes de limpiar.',3,30,0,A),{post:true}),
+ R(WATER,'YELLOW',st('post-elder','Revisa su salud y medicinas','Confirma que tengan sus medicinas y que no haya signos de deshidratación.',2,15,0),{post:true,when:p=>p.hasElderly}),
+ R(WATER,'YELLOW',st('post-pets','Revisa a tu mascota','Agua limpia, alimento y atención veterinaria si hay heridas o decaimiento.',3,15,0,P),{post:true,when:p=>p.hasPets}),
+];
+
+function generate(profile, alert, zoneHigh){
+  const sev = zoneHigh ? Math.min(SEV.indexOf(alert.severity)+1,3) : SEV.indexOf(alert.severity);
+  const hasImpact = alert.impact != null;
+  const phaseOf = r => !hasImpact ? 'ONGOING' : r.post ? 'POST_IMPACT' : r.step.hb>12 ? 'EARLY' : r.step.hb>2 ? 'MINUS_12' : 'MINUS_2';
+  const seen = new Set();
+  return RULES.filter(r => r.hz.includes(alert.hazard) && sev>=r.sev && (!r.when||r.when(profile)) && (!r.post||hasImpact))
+    .map(r=>({...r.step, phase:phaseOf(r)}))
+    .filter(s=>!seen.has(s.id)&&seen.add(s.id))
+    .sort((a,b)=>PHASES.indexOf(a.phase)-PHASES.indexOf(b.phase)||a.pri-b.pri||b.hb-a.hb);
+}
+function unlockAt(phase, impact){
+  if(impact==null) return 0;
+  return {ONGOING:0,EARLY:0,MINUS_12:impact-12*HOUR,MINUS_2:impact-2*HOUR,POST_IMPACT:impact}[phase];
+}
+const isUnlocked=(s,alert,now)=>now>=unlockAt(s.phase,alert.impact);
+
+/* ===== Estado ===== */
+const load=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}};
+const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const state={
+  tab:'home', planFilter:null, now:Date.now(), loading:true, real:[],
+  region:load('region','sw-guerrero'),
+  profile:load('profile',{groundFloor:false,hasChildren:false,hasElderly:false,hasPets:false}),
+  zoneHigh:load('zoneHigh',false),
+  sim:load('sim',null),   // {hazard,severity,issued,impact}
+  done:load('done',{}),
+};
+
+/* ===== NASA EONET (espejo de NasaEonetSource.kt) ===== */
+function stormSeverity(w){ return w==null?'YELLOW': w<34?'GREEN': w<64?'YELLOW': w<96?'ORANGE':'RED'; }
+function firstCoord(c){ let n=c; while(Array.isArray(n)&&Array.isArray(n[0])) n=n[0]; return Array.isArray(n)&&n.length>=2?n:null; }
+function parseEonet(json, regionId, now){
+  const [x0,y0,x1,y1]=REGIONS[regionId].box, out=[];
+  for(const ev of json.events||[]){
+    const cat=ev.categories&&ev.categories[0]&&ev.categories[0].id;
+    const hazard = cat==='severeStorms'?'HURRICANE': cat==='floods'?'FLOOD':null; if(!hazard) continue;
+    const pts=(ev.geometry||[]).map(g=>({t:Date.parse(g.date),g})).filter(p=>!isNaN(p.t)&&p.t<=now).sort((a,b)=>b.t-a.t);
+    if(!pts.length) continue;
+    const {t,g}=pts[0]; if(now-t>72*HOUR) continue;
+    const c=firstCoord(g.coordinates); if(!c) continue;
+    if(!(c[0]>=x0&&c[0]<=x1&&c[1]>=y0&&c[1]<=y1)) continue;
+    const wind=typeof g.magnitudeValue==='number'?g.magnitudeValue:null;
+    out.push({id:ev.id,hazard,severity:hazard==='HURRICANE'?stormSeverity(wind):'YELLOW',
+      headline:`${ev.title}${wind!=null?` (vientos de ${Math.round(wind)} nudos)`:''}`,issued:t,impact:null,simulated:false,source:'NASA EONET'});
+  }
+  return out;
+}
+async function refreshReal(){
+  state.loading=true; render();
+  const [x0,y0,x1,y1]=REGIONS[state.region].box;
+  try{
+    const r=await fetch(`https://eonet.gsfc.nasa.gov/api/v3/events?status=open&category=severeStorms,floods&bbox=${x0},${y1},${x1},${y0}`);
+    state.real = r.ok ? parseEonet(await r.json(), state.region, Date.now()) : [];
+  }catch(e){ state.real=[]; }
+  state.loading=false; state.now=Date.now(); render();
+}
+
+/* ===== Derivados ===== */
+function activeAlerts(){
+  const list=[...state.real];
+  if(state.sim) list.unshift({id:'sim',hazard:state.sim.hazard,severity:state.sim.severity,issued:state.sim.issued,impact:state.sim.impact,
+    headline:'Alerta simulada para demostración',simulated:true,source:'Simulador'});
+  return list.sort((a,b)=>SEV.indexOf(b.severity)-SEV.indexOf(a.severity)).map(a=>({alert:a,steps:generate(state.profile,a,state.zoneHigh)}));
+}
+const isDone=(aid,sid)=>!!state.done[aid+':'+sid];
+const doneCount=it=>it.steps.filter(s=>isDone(it.alert.id,s.id)).length;
+function nextAction(it){
+  return it.steps.find(s=>!isDone(it.alert.id,s.id)&&isUnlocked(s,it.alert,state.now));
+}
+function fmt(ms){ const m=Math.max(0,Math.round(ms/MIN)); if(m<60) return m+' min'; const h=Math.floor(m/60); if(h<48) return h+' h '+(m%60)+' min'; return Math.floor(h/24)+' d '+(h%24)+' h'; }
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ===== Vistas ===== */
+function ring(p,color,size,stroke,inner,track){
+  const r=(size-stroke)/2, c=2*Math.PI*r;
+  return `<div class="ring" style="--s:${size}px"><svg width="${size}" height="${size}">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${track||color+'2E'}" stroke-width="${stroke}"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"
+      stroke-dasharray="${c}" stroke-dashoffset="${c*(1-Math.min(1,Math.max(0,p)))}"/></svg><div class="in">${inner}</div></div>`;
+}
+const pill=(t,color,filled)=>`<span class="pill" style="background:${filled?color:color+'24'};color:${filled?'#fff':color}">${esc(t)}</span>`;
+
+function home(){
+  const items=activeAlerts(), top=items[0];
+  let h=`<h1>Kairos</h1><div class="row" style="margin-bottom:18px">${pill(REGIONS[state.region].name,'#1F6BFF')}</div>`;
+  if(!top){
+    h+=`<div class="hero" style="background:linear-gradient(135deg,${SEV_HERO.GREEN.join(',')})">${pill('TODO EN CALMA','rgba(255,255,255,.28)',true)}
+      <h3>Sin alertas activas en tu zona</h3><div style="opacity:.92">${state.loading?'Buscando alertas en NASA EONET…':'Es buen momento para preparar tu kit de emergencia y revisar tu ruta de evacuación.'}</div></div>
+      <div class="card"><b>¿Quieres ver cómo funciona?</b><p class="muted">Hoy NASA no reporta eventos en esta región. Activa una alerta simulada para ver el plan completo.</p>
+      <button class="btn" onclick="go('settings')">Ir a la simulación</button></div>`;
+    return h;
+  }
+  const a=top.alert, total=Math.max(1,top.steps.length), done=doneCount(top);
+  const timing = a.impact==null ? `Alerta prolongada · activa desde hace ${fmt(state.now-a.issued)}`
+    : state.now<a.impact ? `Impacto estimado en ${fmt(a.impact-state.now)}` : 'El impacto ya ocurrió · fase post-impacto';
+  h+=`<div class="hero" onclick="go('plan')" style="background:linear-gradient(135deg,${SEV_HERO[a.severity].join(',')})">
+    <div class="row" style="align-items:center"><div style="flex:1">
+      ${pill('ALERTA '+SEV_LABEL[a.severity].toUpperCase(),'rgba(255,255,255,.28)',true)} ${a.simulated?pill('SIMULADO','rgba(0,0,0,.28)',true):''}
+      <h3>${HAZARDS[a.hazard]}</h3><div style="opacity:.93">${esc(a.headline)}</div><div style="font-weight:700;margin-top:6px">${timing}</div></div>
+      ${ring(done/total,'#fff',96,10,`<span style="font-size:18px">${Math.floor(done*100/total)}%</span><span class="small" style="opacity:.85">listo</span>`,'rgba(255,255,255,.3)')}
+    </div></div>`;
+  const na=nextAction(top);
+  if(na) h+=`<div class="card"><div class="row" style="flex-wrap:wrap">${pill('TU SIGUIENTE ACCIÓN','#1F6BFF')} ${pill(CATS[na.cat],CAT_COLOR[na.cat])}</div>
+    <div style="font-size:22px;font-weight:800;margin:10px 0 4px">${esc(na.title)}</div><div class="muted">${esc(na.detail)}</div>
+    <div class="muted small" style="margin:8px 0 14px">≈ ${na.min} min · ${PHASE_LABEL[na.phase]}</div>
+    <div class="row"><button class="btn" onclick="toggle('${a.id}','${na.id}')">Hecho</button><button class="btn ghost" onclick="go('plan')">Ver plan completo</button></div></div>`;
+  if(a.impact!=null){
+    const ph=PHASES.filter(p=>p!=='ONGOING'&&top.steps.some(s=>s.phase===p));
+    h+=`<div class="card"><b>Línea de tiempo</b><div class="tl" style="margin-top:12px">`+ph.map(p=>{
+      const steps=top.steps.filter(s=>s.phase===p), unlocked=state.now>=unlockAt(p,a.impact), all=steps.every(s=>isDone(a.id,s.id));
+      const [color,cap]= all?['#12C27E','Completada'] : unlocked?[SEV_ACCENT[a.severity],'Ahora'] : ['#9AA5B8','en '+fmt(unlockAt(p,a.impact)-state.now)];
+      return `<div style="background:${color}${unlocked?'29':'1A'}"><i style="background:${color}"></i><b>${PHASE_LABEL[p].replace('Fase ','')}</b><div class="muted">${cap}</div></div>`;
+    }).join('')+`</div></div>`;
+  }
+  h+=`<h2>Tu hogar por módulos</h2><div class="grid">`+Object.keys(CATS).map(c=>{
+    const st=top.steps.filter(s=>s.cat===c), d=st.filter(s=>isDone(a.id,s.id)).length;
+    return `<div class="card mod" onclick="go('plan','${c}')">${ring(st.length?d/st.length:0,CAT_COLOR[c],76,9,`<span class="small">${d}/${st.length}</span>`)}<span style="color:${CAT_COLOR[c]}">${CATS[c]}</span></div>`;
+  }).join('')+`</div>`;
+  const dAll=items.reduce((n,i)=>n+doneCount(i),0), tAll=items.reduce((n,i)=>n+i.steps.length,0);
+  const rem=top.steps.filter(s=>!isDone(a.id,s.id)&&isUnlocked(s,a,state.now)).reduce((n,s)=>n+s.min,0);
+  h+=`<div class="stats" style="margin-top:18px"><div class="card"><b style="color:#1F6BFF">${dAll}/${tAll}</b><span class="muted small">pasos hechos</span></div>
+    <div class="card"><b style="color:${SEV_ACCENT[a.severity]}">${rem} min</b><span class="muted small">por hacer ahora</span></div>
+    <div class="card"><b>${items.length}</b><span class="muted small">${items.length===1?'alerta activa':'alertas activas'}</span></div></div>`;
+  return h;
+}
+
+function plan(){
+  const items=activeAlerts(); if(!items.length) return `<h1>Plan</h1><div class="card muted">Sin alertas activas. Activa una simulación en Ajustes para ver el plan.</div>`;
+  const it=items[0], a=it.alert;
+  let h=`<h1>Plan</h1><div class="muted" style="margin-bottom:14px">${HAZARDS[a.hazard]} · alerta ${SEV_LABEL[a.severity].toLowerCase()}</div>
+  <div class="chips"><button class="chip ${!state.planFilter?'on':''}" onclick="go('plan',null)">Todo</button>`+
+  Object.keys(CATS).map(c=>`<button class="chip ${state.planFilter===c?'on':''}" onclick="go('plan','${c}')">${CATS[c]}</button>`).join('')+`</div>`;
+  const steps=it.steps.filter(s=>!state.planFilter||s.cat===state.planFilter);
+  PHASES.filter(p=>steps.some(s=>s.phase===p)).forEach(p=>{
+    const unl=state.now>=unlockAt(p,a.impact);
+    h+=`<div class="card"><div class="row" style="justify-content:space-between"><b>${PHASE_LABEL[p]}</b>${unl?'':pill('se desbloquea en '+fmt(unlockAt(p,a.impact)-state.now),'#9AA5B8')}</div>`+
+      steps.filter(s=>s.phase===p).map(s=>{
+        const d=isDone(a.id,s.id);
+        return `<div class="step ${d?'done':''} ${unl?'':'locked'}"><input type="checkbox" ${d?'checked':''} ${unl?'':'disabled'} onchange="toggle('${a.id}','${s.id}')">
+          <div><div class="t" style="font-weight:700">${esc(s.title)}</div><div class="muted small">${esc(s.detail)}</div>
+          <div class="row" style="margin-top:6px">${pill(CATS[s.cat],CAT_COLOR[s.cat])}<span class="muted small">≈ ${s.min} min</span></div>
+          ${s.product?`<div class="small" style="margin-top:6px">🛒 Opcional: ${esc(s.product.name)} · $${s.product.price} <span class="muted">(datos simulados)</span></div>`:''}</div></div>`;
+      }).join('')+`</div>`;
+  });
+  return h;
+}
+
+function alerts(){
+  const items=activeAlerts();
+  let h=`<h1>Alertas</h1><div class="muted" style="margin-bottom:14px">${esc(REGIONS[state.region].name)}</div>`;
+  if(!items.length) return h+`<div class="card muted">${state.loading?'Buscando…':'Sin alertas activas.'}</div>`;
+  return h+items.map(({alert:a})=>`<div class="card"><div class="row"><i style="width:14px;height:14px;border-radius:50%;background:${SEV_ACCENT[a.severity]}"></i>
+    <b style="flex:1">${HAZARDS[a.hazard]}</b><span style="color:${SEV_ACCENT[a.severity]};font-weight:700">${SEV_LABEL[a.severity]}</span></div>
+    <div class="muted" style="margin:8px 0">${esc(a.headline)}</div>
+    <div class="row">${pill(a.source,'#1F6BFF')} ${a.simulated?pill('SIMULADO','#9AA5B8'):''}<span class="muted small">hace ${fmt(state.now-a.issued)}</span></div></div>`).join('');
+}
+
+function settings(){
+  const s=state.sim||{hazard:'HURRICANE',severity:'ORANGE',hours:30};
+  const opts=(o,sel)=>Object.entries(o).map(([k,v])=>`<option value="${k}" ${k===sel?'selected':''}>${v}</option>`).join('');
+  return `<h1>Ajustes</h1>
+  <div class="card"><b>Región piloto</b><div style="margin-top:10px"><select id="reg" onchange="setRegion(this.value)">${opts(Object.fromEntries(Object.entries(REGIONS).map(([k,v])=>[k,v.name])),state.region)}</select></div>
+    <button class="btn ghost" style="padding-left:0" onclick="refreshReal()">Actualizar alertas de NASA</button></div>
+  <div class="card"><b>Tu hogar</b><div class="muted small">Personaliza el plan. Se guarda solo en este navegador.</div>
+    ${[['groundFloor','Vivienda en planta baja'],['hasChildren','Niñas y niños'],['hasElderly','Personas adultas mayores'],['hasPets','Mascotas']].map(([k,l])=>
+      `<label class="opt">${l}<input class="sw" type="checkbox" ${state.profile[k]?'checked':''} onchange="setProfile('${k}',this.checked)"></label>`).join('')}
+    <label class="opt">Zona de riesgo alto<input class="sw" type="checkbox" ${state.zoneHigh?'checked':''} onchange="setZone(this.checked)"></label></div>
+  <div class="card"><b>Simulación</b><div class="muted small" style="margin-bottom:10px">Crea una alerta de prueba para ver el tablero completo.</div>
+    <label class="opt">Amenaza<select id="sh">${opts(HAZARDS,s.hazard)}</select></label>
+    <label class="opt">Severidad<select id="ss">${opts(SEV_LABEL,s.severity)}</select></label>
+    <label class="opt">Impacto en (horas)<input id="sd" type="number" min="0" max="72" value="${s.hours||30}" style="width:90px"></label>
+    <div class="row" style="margin-top:8px"><button class="btn" onclick="startSim()">Activar</button><button class="btn ghost" onclick="stopSim()">Quitar</button></div></div>
+  <div class="card"><b>Datos y privacidad</b><p class="muted small">Esta demo web corre toda en tu navegador. No se envía información personal a ningún servidor; solo se consulta la API pública de NASA EONET.</p>
+    <button class="btn ghost" style="padding-left:0" onclick="resetAll()">Borrar mis datos</button></div>`;
+}
+
+function render(){
+  const v={home,plan,alerts,settings}[state.tab]();
+  document.getElementById('app').innerHTML=v;
+  document.getElementById('nav').innerHTML=[['home','🏠','Inicio'],['plan','✅','Plan'],['alerts','🔔','Alertas'],['settings','⚙️','Ajustes']]
+    .map(([k,i,l])=>`<button class="${state.tab===k?'on':''}" onclick="go('${k}')"><span>${i}</span>${l}</button>`).join('');
+}
+
+/* ===== Acciones ===== */
+function go(tab,filter){ state.tab=tab; if(filter!==undefined) state.planFilter=filter; scrollTo(0,0); render(); }
+function toggle(aid,sid){ const k=aid+':'+sid; if(state.done[k]) delete state.done[k]; else state.done[k]=true; save('done',state.done); render(); }
+function setRegion(r){ state.region=r; save('region',r); refreshReal(); }
+function setProfile(k,v){ state.profile[k]=v; save('profile',state.profile); }
+function setZone(v){ state.zoneHigh=v; save('zoneHigh',v); }
+function startSim(){
+  const hours=Math.max(0,Math.min(72,+document.getElementById('sd').value||0)), now=Date.now();
+  state.sim={hazard:document.getElementById('sh').value,severity:document.getElementById('ss').value,hours,issued:now,
+    impact:['EXTREME_HEAT','WATER_SCARCITY'].includes(document.getElementById('sh').value)?null:now+hours*HOUR};
+  save('sim',state.sim); state.now=now; state.tab='home'; render();
+}
+function stopSim(){ state.sim=null; save('sim',null); render(); }
+function resetAll(){ ['done','sim','profile','zoneHigh','region'].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
+  state.done={};state.sim=null;state.profile={groundFloor:false,hasChildren:false,hasElderly:false,hasPets:false};state.zoneHigh=false; render(); }
+
+setInterval(()=>{ state.now=Date.now(); if(state.tab!=='settings') render(); },60000);
+render(); refreshReal();
+</script>
+</body>
+</html>
