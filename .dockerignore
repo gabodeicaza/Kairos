@@ -1,0 +1,10 @@
+app
+gradle
+.git
+.idea
+.gradle
+.kotlin
+build
+*.md
+secrets.properties
+local.properties
