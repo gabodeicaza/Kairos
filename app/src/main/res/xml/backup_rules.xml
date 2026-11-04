@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Datos personales y sensibles: se excluyen de respaldos (la clave de Keystore no es transferible). -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="secure_store.xml" />
+    <exclude domain="sharedpref" path="settings.xml" />
+</full-backup-content>
