@@ -3,7 +3,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getNews } from './news.js';
+import { getNews, getNewsFor } from './news.js';
 import { getForecast, isKnownRegion } from './forecast.js';
 import { lookupHazards, MX_BOX } from './hazards.js';
 
@@ -23,12 +23,20 @@ const send = (res, code, body, headers = {}) => { res.writeHead(code, { 'X-Conte
 
 http.createServer(async (req, res) => {
   const { pathname, searchParams } = new URL(req.url, 'http://localhost');
-  // Solo /api/hazards acepta POST: las coordenadas viajan en el cuerpo y no en la URL, que las plataformas suelen registrar.
-  const isHazards = pathname === '/api/hazards';
-  if (isHazards ? req.method !== 'POST' : (req.method !== 'GET' && req.method !== 'HEAD')) return send(res, 405, 'Method Not Allowed', { Allow: isHazards ? 'POST' : 'GET, HEAD' });
+  // /api/hazards solo acepta POST y /api/news acepta POST además de GET: los datos de ubicación viajan en el cuerpo
+  // y no en la URL, que las plataformas suelen registrar.
+  const allowed = pathname === '/api/hazards' ? ['POST'] : pathname === '/api/news' ? ['GET', 'HEAD', 'POST'] : ['GET', 'HEAD'];
+  if (!allowed.includes(req.method)) return send(res, 405, 'Method Not Allowed', { Allow: allowed.join(', ') });
   try {
     if (pathname === '/healthz') return send(res, 200, 'ok');
     if (pathname === '/api/news') {
+      if (req.method === 'POST') {
+        let body;
+        try { body = JSON.parse(await readBody(req, 1024)); } catch { return send(res, 400, JSON.stringify({ error: 'cuerpo JSON inválido' }), { 'Content-Type': 'application/json; charset=utf-8' }); }
+        const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
+        const data = await getNewsFor({ muni: str(body && body.muni, 80), estado: str(body && body.estado, 60) });
+        return send(res, 200, JSON.stringify(data), { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      }
       const data = await getNews();
       return send(res, 200, JSON.stringify(data), { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
     }

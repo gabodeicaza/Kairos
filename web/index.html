@@ -131,6 +131,12 @@ nav button.on{color:var(--accent)}
 .fci{font-size:24px;line-height:1.3}
 .fctags{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .fctags .pill{font-size:12px;padding:6px 12px;line-height:1.3}
+
+/* Selector de radio */
+.rad{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.rad button{border:0;border-radius:50px;padding:9px 16px;font:inherit;font-size:14px;font-weight:600;background:#fff;color:var(--text);cursor:pointer}
+.rad button.on{background:var(--accent);color:#fff}
+.rad button:disabled{opacity:.4;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -323,6 +329,8 @@ const scene=(label,color,fn)=>`<button class="scene" style="background:${color}"
 /* ===== Zona de peligro automática (/api/hazards -> Atlas Nacional de Riesgos, CENAPRED) ===== */
 state.zone=load('zone',null);       // {municipio,estado,hazards:{HAZARD:{grade,high}},mode}. Solo se guarda el municipio, nunca coordenadas.
 state.zoneStatus=null;              // null | 'locating' | 'denied' | 'unsupported' | 'error' | 'outside'
+state.loc=load('loc',null);            // {lat,lon} redondeados a ~1 km. Solo en este navegador y solo si vino del GPS; nunca se envía al servidor.
+state.radius=load('radius','region');   // 5 | 10 | 20 | 'region'
 const GRADE_COLOR={'Muy bajo':'#22B07D','Bajo':'#22B07D','Medio':'#E5A100','Alto':'#FF7A00','Muy alto':'#E8261C'};
 const HZ_ICON={FLOOD:'🌊',HURRICANE:'🌀',EXTREME_HEAT:'🌡️',WATER_SCARCITY:'💧'};
 const HZ_SHORT={FLOOD:'Inundación',HURRICANE:'Ciclones',EXTREME_HEAT:'Calor',WATER_SCARCITY:'Sequía'};
@@ -350,6 +358,7 @@ async function fetchZone(lat,lon,mode){
     if(!r.ok) throw new Error('HTTP '+r.status);
     const d=await r.json();
     state.zone={municipio:d.municipio,estado:d.estado,hazards:d.hazards,mode,partial:!!d.partial}; save('zone',state.zone); state.zoneStatus=null;
+    state.loc=mode==='gps'?{lat:Math.round(lat*100)/100,lon:Math.round(lon*100)/100}:null; save('loc',state.loc);
     // Si cae dentro de una región piloto, se cambia sola: el usuario no tiene que elegirla.
     for(const [k,v] of Object.entries(REGIONS)){
       const [x0,y0,x1,y1]=v.box;
@@ -357,8 +366,9 @@ async function fetchZone(lat,lon,mode){
     }
   }catch(e){ state.zoneStatus='error'; }
   render();
+  if(state.zone&&state.zoneStatus===null) refreshNews();   // el servidor marca qué comunicados nombran tu municipio
 }
-function clearZone(){ state.zone=null; state.zoneStatus=null; save('zone',null); render(); }
+function clearZone(){ state.zone=null; state.zoneStatus=null; state.loc=null; save('zone',null); save('loc',null); render(); refreshNews(); }
 
 function zoneCard(){
   const z=state.zone, st=state.zoneStatus;
@@ -379,7 +389,7 @@ function zoneCard(){
     error:'No se pudieron consultar los mapas de riesgo ahora. Inténtalo de nuevo en un momento.',
     outside:'Tu ubicación está fuera de la cobertura del Atlas (solo México).'}[st];
   return `<div class="card"><b>📍 Detecta tu zona de peligro</b>
-    <div class="muted small" style="margin:6px 0 12px">Usamos tu ubicación una sola vez para consultar los mapas de peligro del CENAPRED y ajustar tu plan. No se guarda: solo recordamos tu municipio y su nivel de peligro.</div>
+    <div class="muted small" style="margin:6px 0 12px">Usamos tu ubicación para consultar los mapas de peligro del CENAPRED, ajustar tu plan y medir la distancia a eventos cercanos. Se queda solo en este navegador, redondeada a ~1 km: nunca se guarda en el servidor.</div>
     ${msg?`<div class="small" style="color:#E8261C;margin-bottom:10px">${msg}</div>`:''}
     <div class="row" style="flex-wrap:wrap"><button class="btn" onclick="locate()">Usar mi ubicación</button><button class="btn ghost" onclick="useRegionRef()">Usar referencia de la región</button></div></div>`;
 }
@@ -447,13 +457,14 @@ function forecastSection(){
 }
 
 /* ===== Noticias oficiales (/api/news, las agrega el servidor de Kairos) ===== */
-const KIND_COLOR={'proteccion-civil':'#E8261C',gobierno:'#1F8B5F',nasa:'#2F6BFF',noaa:'#6A55D3',gdacs:'#0E8F9E'};
-const KIND_LABEL={'proteccion-civil':'Protección Civil',gobierno:'Gobierno de México',nasa:'NASA',noaa:'NOAA',gdacs:'GDACS (ONU/UE)'};
+const KIND_COLOR={'proteccion-civil':'#E8261C',gobierno:'#1F8B5F',nasa:'#2F6BFF',noaa:'#6A55D3',gdacs:'#0E8F9E',usgs:'#B45F06'};
+const KIND_LABEL={'proteccion-civil':'Protección Civil',gobierno:'Gobierno de México',nasa:'NASA',noaa:'NOAA',gdacs:'GDACS (ONU/UE)',usgs:'USGS · Sismo'};
 state.news={items:[],loading:true,error:null,filter:'all',all:false,scope:'zone'};
 async function refreshNews(){
   state.news.loading=true; state.news.error=null; render();
   try{
-    const r=await fetch('/api/news'); if(!r.ok) throw new Error('HTTP '+r.status);
+    const z=state.zone&&state.zone.mode==='gps'?state.zone:null;   // solo nombre de municipio y estado, en el cuerpo del POST
+    const r=await fetch('/api/news',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({muni:z?z.municipio:'',estado:z?z.estado||'':''})}); if(!r.ok) throw new Error('HTTP '+r.status);
     const d=await r.json(); state.news.items=Array.isArray(d.items)?d.items:[];
   }catch(e){ state.news.error='No se pudieron cargar las noticias.'; }
   state.news.loading=false; render();
@@ -491,32 +502,62 @@ function inZone(i,z){
   return !st.length&&(i.basins||[]).some(b=>z.basins.includes(b));       // aviso de cuenca sin estados: aplica a la costa de tu zona
 }
 function setNewsScope(s){ state.news.scope=s; state.news.all=false; render(); }
+function setRadius(v){ state.radius=v==='region'?'region':Number(v); save('radius',state.radius); state.news.all=false; render(); }
+
+/* Distancia en km entre dos puntos (haversine) */
+function km(a,b){
+  const R=6371, rad=x=>x*Math.PI/180, dLat=rad(b.lat-a.lat), dLon=rad(b.lon-a.lon);
+  const h=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+const REGION_KM=250;                                      // "toda la región" para eventos con coordenadas
+const radiusNow=()=>state.loc?state.radius:'region';      // sin ubicación no hay radio
+function distTo(i){ return state.loc&&i.geo?km(state.loc,i.geo):null; }
+/* Qué noticias se muestran según el radio elegido */
+function visible(i,z){
+  const r=radiusNow();
+  if(i.areal) return inZone(i,z);                         // ciclones y avisos de cuenca: abarcan cientos de km, se filtran por región
+  if(i.geo){                                              // sismos, inundaciones: distancia real
+    const d=distTo(i);
+    if(d==null) return inZone(i,z);
+    return r==='region'?(d<=REGION_KM||inZone(i,z)):d<=r;
+  }
+  return r==='region'?inZone(i,z):i.muni===true;          // comunicados: no traen coordenadas, solo se pueden ligar por mención del municipio
+}
 
 function newsSection(){
-  const n=state.news, z=interest();
+  const n=state.news, z=interest(), r=radiusNow(), hasLoc=!!state.loc;
   const where=state.zone&&state.zone.municipio?`${state.zone.municipio}${state.zone.estado?', '+state.zone.estado:''}`:z.states.join(' y ');
-  const basinTxt=z.basins.length===1?` · ${BASIN_LABEL[z.basins[0]]}`:'';
-  const kinds=[['all','Todas'],['proteccion-civil','Protección Civil'],['gobierno','Gobierno'],['nasa','NASA'],['noaa','NOAA'],['gdacs','GDACS']];
+  const scopeTxt=r==='region'?(z.basins.length===1?` · ${BASIN_LABEL[z.basins[0]]}`:''):` · a ${r} km de ti`;
+  const kinds=[['all','Todas'],['proteccion-civil','Protección Civil'],['gobierno','Gobierno'],['usgs','Sismos'],['nasa','NASA'],['noaa','NOAA'],['gdacs','GDACS']];
   let h=`<div class="newshead" id="news"><h2>Noticias de tu zona</h2><button class="lnk" onclick="refreshNews()">Actualizar</button></div>
-    <div class="muted small" style="margin:-2px 0 10px">📍 ${esc(where)}${basinTxt}${state.zone?'':' · según tu región; detecta tu zona para afinarla'}</div>
-    <div class="tabs sm">`+kinds.map(([k,l])=>`<button class="${n.filter===k?'on':''}" onclick="setNewsFilter('${k}')">${l}</button>`).join('')+`</div>`;
+    <div class="muted small" style="margin:-2px 0 10px">📍 ${esc(where)}${scopeTxt}${state.zone?'':' · según tu región; detecta tu zona para afinarla'}</div>
+    <div class="rad">`+[[5,'5 km'],[10,'10 km'],[20,'20 km'],['region','Toda la región']].map(([v,l])=>
+      `<button class="${r===v?'on':''}" ${!hasLoc&&v!=='region'?'disabled':''} onclick="setRadius('${v}')">${l}</button>`).join('')+`</div>`;
+  h+=!hasLoc?`<div class="muted small" style="margin:-4px 0 10px">Para usar 5, 10 o 20 km necesitamos tu ubicación: pulsa <b>Usar mi ubicación</b> en la tarjeta de tu zona.</div>`
+    :r!=='region'?`<div class="muted small" style="margin:-4px 0 10px">Con radio: sismos e inundaciones por distancia real; comunicados solo si nombran tu municipio; ciclones según tu región.</div>`:'';
+  h+=`<div class="tabs sm">`+kinds.map(([k,l])=>`<button class="${n.filter===k?'on':''}" onclick="setNewsFilter('${k}')">${l}</button>`).join('')+`</div>`;
   if(n.loading&&!n.items.length) return h+`<div class="card muted">Cargando noticias de fuentes oficiales…</div>`;
   if(n.error&&!n.items.length) return h+`<div class="card muted">${n.error} <button class="btn ghost" onclick="refreshNews()">Reintentar</button></div>`;
-  const outside=n.items.filter(i=>!inZone(i,z)).length, all=n.scope==='all';
-  const list=(all?n.items:n.items.filter(i=>inZone(i,z))).filter(i=>n.filter==='all'||i.kind===n.filter);
+  const outside=n.items.filter(i=>!visible(i,z)).length, all=n.scope==='all';
+  const list=(all?n.items:n.items.filter(i=>visible(i,z))).filter(i=>n.filter==='all'||i.kind===n.filter);
   const toggle=outside?`<button class="btn ghost" style="width:100%;margin-bottom:6px" onclick="setNewsScope('${all?'zone':'all'}')">${all?'Solo mi zona':'Incluir nacionales y globales ('+outside+')'}</button>`:'';
-  if(!list.length) return h+`<div class="card muted">${all?'Sin noticias recientes de esta fuente.':'No hay noticias recientes de tu zona'+(n.filter!=='all'?' en esta fuente':'')+'.'}</div>`+toggle;
+  if(!list.length){
+    const where2=all?'Sin noticias recientes de esta fuente.':(r==='region'?'No hay noticias recientes de tu zona':'No hay noticias recientes a '+r+' km de ti')+(n.filter!=='all'?' en esta fuente':'')+'.';
+    return h+`<div class="card muted">${where2}${!all&&r!=='region'?` <button class="btn ghost" onclick="setRadius('region')">Ampliar a toda la región</button>`:''}</div>`+toggle;
+  }
   const shown=n.all?list:list.slice(0,6);
   h+=shown.map(i=>{
-    const link=/^https:\/\//.test(i.link)?i.link:'#', img=/^https:\/\//.test(i.image||'')?i.image:'', far=all&&!inZone(i,z);
+    const link=/^https:\/\//.test(i.link)?i.link:'#', img=/^https:\/\//.test(i.image||'')?i.image:'', far=all&&!visible(i,z), d=distTo(i);
+    const dist=d!=null?` · a ${d<10?d.toFixed(1):Math.round(d)} km de ti`:'';
     return `<a class="news" href="${esc(link)}" target="_blank" rel="noopener noreferrer"><div class="nb">
-      <div class="row" style="gap:8px;flex-wrap:wrap">${pill(KIND_LABEL[i.kind]||i.source,KIND_COLOR[i.kind]||'#8A90A0')}${far?pill('Fuera de tu zona','#8A90A0'):''}<span class="muted small">${ago(i.date)}${i.lang==='en'?' · EN':''}</span></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap">${pill(KIND_LABEL[i.kind]||i.source,KIND_COLOR[i.kind]||'#8A90A0')}${far?pill('Fuera de tu zona','#8A90A0'):''}<span class="muted small">${ago(i.date)}${i.lang==='en'?' · EN':''}${dist}</span></div>
       <div class="nt">${esc(i.title)}</div><div class="muted small">${esc(i.source)} ↗</div></div>
       ${img?`<img src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`:''}</a>`;
   }).join('');
   if(list.length>6) h+=`<button class="btn ghost" style="width:100%;margin-bottom:6px" onclick="state.news.all=!state.news.all;render()">${n.all?'Ver menos':'Ver todas ('+list.length+')'}</button>`;
   h+=toggle;
-  return h+`<div class="muted small" style="margin:6px 4px 16px">Solo mostramos lo que menciona tu estado, tu municipio o la cuenca de tu costa (${z.basins.map(b=>BASIN_LABEL[b]).join(' y ')}). Fuentes: gob.mx (Protección Civil, Conagua y Segob), NASA, NOAA y GDACS. Se actualizan cada 10 minutos.</div>`;
+  return h+`<div class="muted small" style="margin:6px 4px 16px">Fuentes: gob.mx (Protección Civil, Conagua y Segob), NASA, NOAA, USGS y GDACS. Los comunicados no traen coordenadas, por eso el radio solo se aplica a ellos por mención de tu municipio. Se actualizan cada 10 minutos.</div>`;
 }
 
 function home(){
@@ -629,7 +670,7 @@ function settings(){
     <label class="opt">Severidad<select id="ss">${opts(SEV_LABEL,s.severity)}</select></label>
     <label class="opt">Impacto en (horas)<input id="sd" type="number" min="0" max="72" value="${s.hours||30}" style="width:90px"></label>
     <div class="row" style="margin-top:8px"><button class="btn" onclick="startSim()">Activar</button><button class="btn ghost" onclick="stopSim()">Quitar</button></div></div>
-  <div class="card"><b>Datos y privacidad</b><p class="muted small">Tu perfil y tu avance se guardan solo en este navegador y no se envían a ningún servidor. La página consulta NASA EONET y el servidor de Kairos, que reúne noticias oficiales y el pronóstico de Open-Meteo; esas consultas solo indican la región piloto, nunca datos de tu hogar. Si detectas tu zona, tu ubicación se usa una sola vez (redondeada a ~1 km) para consultar el Atlas Nacional de Riesgos del CENAPRED: viaja en el cuerpo de la petición, no se guarda en el servidor y en tu navegador solo queda el municipio con su grado de peligro.</p>
+  <div class="card"><b>Datos y privacidad</b><p class="muted small">Tu perfil y tu avance se guardan solo en este navegador y no se envían a ningún servidor. La página consulta NASA EONET y el servidor de Kairos, que reúne noticias oficiales y el pronóstico de Open-Meteo; esas consultas solo indican la región piloto, nunca datos de tu hogar. Si detectas tu zona, tu ubicación (redondeada a ~1 km) viaja en el cuerpo de una petición para consultar el Atlas Nacional de Riesgos del CENAPRED y no se guarda en el servidor. En este navegador se recuerdan tu municipio, su grado de peligro y esa ubicación aproximada, solo para medir distancias. Al pedir noticias se envía únicamente el nombre de tu municipio y estado.</p>
     <button class="btn ghost" style="padding-left:0" onclick="resetAll()">Borrar mis datos</button></div>`;
 }
 
@@ -646,8 +687,8 @@ function startSim(){
   save('sim',state.sim); state.now=now; state.tab='home'; render();
 }
 function stopSim(){ state.sim=null; save('sim',null); render(); }
-function resetAll(){ ['done','sim','profile','zoneHigh','region','zone'].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
-  state.done={};state.sim=null;state.profile={groundFloor:false,hasChildren:false,hasElderly:false,hasPets:false};state.zoneHigh=false; state.zone=null; state.zoneStatus=null; render(); }
+function resetAll(){ ['done','sim','profile','zoneHigh','region','zone','loc','radius'].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
+  state.done={};state.sim=null;state.profile={groundFloor:false,hasChildren:false,hasElderly:false,hasPets:false};state.zoneHigh=false; state.zone=null; state.zoneStatus=null; state.loc=null; state.radius='region'; render(); }
 
 setInterval(()=>{ state.now=Date.now(); if(state.tab!=='settings') render(); },60000);
 render(); refreshReal(); refreshNews(); refreshForecast();

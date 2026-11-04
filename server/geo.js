@@ -22,6 +22,12 @@ export function findStates(text) {
   return [...found];
 }
 
+/** Compara nombres de estado: tolera acentos y los nombres oficiales largos ("Michoacán de Ocampo"); "México" a secas = Estado de México. */
+export function sameState(a, b) {
+  const x = fold(a), y = fold(b);
+  return x === y || x.startsWith(y + ' de ') || y.startsWith(x + ' de ') || (x === 'mexico' && y === 'estado de mexico') || (y === 'mexico' && x === 'estado de mexico');
+}
+
 const PACIFIC = /pac[ií]fico|pacific/i;
 const ATLANTIC = /atl[aá]ntico|atlantic|golfo de m[eé]xico|gulf of mexico|caribe|caribbean/i;
 /** Cuencas ciclónicas mencionadas. */

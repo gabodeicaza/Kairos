@@ -1,12 +1,13 @@
 // Agrega noticias de fuentes oficiales (gob.mx, NASA, NOAA/NHC). Sin dependencias: usa fetch de Node 18+.
 // Solo consulta direcciones fijas de esta lista; nunca una URL recibida del cliente.
 
-import { findStates, findBasins, findBasinsStrict, regionsOf } from './geo.js';
+import { findStates, findBasins, findBasinsStrict, regionsOf, fold, sameState } from './geo.js';
 
 const UA = 'KairosNewsBot/1.0 (+https://github.com/gabodeicaza/Kairos)';
 const TTL_MS = 10 * 60 * 1000;
 const TIMEOUT_MS = 12_000;
-const ALLOWED_HOSTS = /(^|\.)(gob\.mx|nasa\.gov|noaa\.gov|gdacs\.org)$/i;
+const ALLOWED_HOSTS = /(^|\.)(gob\.mx|nasa\.gov|noaa\.gov|gdacs\.org|usgs\.gov)$/i;
+const round2 = (v) => Math.round(v * 100) / 100;
 
 // Temas del producto: huracán/tormenta, inundación, calor extremo, escasez de agua + protección civil.
 const MX_TOPICS = /hurac[aá]n|cicl[oó]n|tormenta|lluvia|inundaci|calor|sequ[ií]a|\bagua\b|sismo|protecci[oó]n civil|cnpc|cenapred|alerta|emergencia|autocuidado|temporada|oleaje|incendio|frente fr[ií]o|desastre|damnificad/i;
@@ -95,6 +96,24 @@ async function loadGdacs() {
       link: p.url && p.url.report, date: isNaN(date) ? null : date.toISOString(),
       summary: String(p.htmldescription || p.description || '').slice(0, 220),
       regions: regionsOf(lon, lat), // regiones piloto que contienen el evento
+      geo: { lat: round2(lat), lon: round2(lon) },
+      areal: p.eventtype === 'TC', // un ciclón abarca cientos de km: se filtra por región, no por radio
+    }];
+  });
+}
+
+/* ---------- Sismos M4.5+ de la última semana (USGS), con epicentro ---------- */
+async function loadUsgs() {
+  const json = JSON.parse(await get('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson'));
+  return (json.features || []).flatMap((f) => {
+    const p = f.properties || {};
+    const [lon, lat, depth] = (f.geometry && f.geometry.coordinates) || [];
+    if (typeof p.mag !== 'number' || !Number.isFinite(lon) || !Number.isFinite(lat)) return [];
+    if (lon < -122 || lon > -84 || lat < 12 || lat > 33) return []; // México y su margen marino
+    return [{
+      title: `Sismo M${p.mag.toFixed(1)} · ${p.place || 'México'}`, link: p.url, date: new Date(p.time).toISOString(),
+      summary: Number.isFinite(depth) ? `Profundidad ${Math.round(depth)} km` : '',
+      regions: regionsOf(lon, lat), geo: { lat: round2(lat), lon: round2(lon) },
     }];
   });
 }
@@ -116,6 +135,8 @@ async function loadNhcActive() {
       // Los identificadores del NHC empiezan por la cuenca: al/AL = Atlántico, ep/EP y cp/CP = Pacífico.
       basins: /^(ep|cp)/i.test(s.id || '') ? ['pacific'] : /^al/i.test(s.id || '') ? ['atlantic'] : [],
       regions: Number.isFinite(lat) && Number.isFinite(lon) ? regionsOf(lon, lat) : [],
+      geo: Number.isFinite(lat) && Number.isFinite(lon) ? { lat: round2(lat), lon: round2(lon) } : null,
+      areal: true,
     }];
   });
 }
@@ -123,6 +144,7 @@ async function loadNhcActive() {
 const SOURCES = [
   { id: 'nhc-active', name: 'NOAA · Tormentas activas (NHC)', kind: 'noaa', lang: 'es', max: 5, base: 'https://www.nhc.noaa.gov', load: loadNhcActive, only: /./ },
   { id: 'gdacs', name: 'GDACS · ONU y Comisión Europea', kind: 'gdacs', lang: 'es', max: 8, base: 'https://www.gdacs.org', load: loadGdacs, only: /./ },
+  { id: 'usgs', name: 'USGS · Servicio Geológico de EE. UU.', kind: 'usgs', lang: 'en', max: 6, base: 'https://earthquake.usgs.gov', load: loadUsgs, only: /./ },
   { id: 'cnpc', name: 'Protección Civil (CNPC)', kind: 'proteccion-civil', max: 16, body: true, topics: /cnpc|protecci[oó]n civil|cenapred|hurac[aá]n|cicl[oó]n|tormenta|lluvia|inundaci|sismo|calor|autocuidado|temporada|emergencia/i,
     // La CNPC publica sus comunicados dentro de la sección de la SSPC.
     load: gob('sspc', 3), only: /cnpc|protecci[oó]n civil|cenapred|hurac[aá]n|cicl[oó]n|tormenta|lluvia|inundaci|sismo|calor|autocuidado|temporada|oleaje/i },
@@ -132,9 +154,9 @@ const SOURCES = [
   { id: 'nasa', name: 'NASA', kind: 'nasa', max: 5, base: 'https://www.nasa.gov', load: async () => parseRss(await get('https://www.nasa.gov/feed/')), only: EN_TOPICS },
   { id: 'nasa-eo', name: 'NASA · Earth Observatory', kind: 'nasa', max: 5, base: 'https://earthobservatory.nasa.gov',
     load: async () => parseRss(await get('https://earthobservatory.nasa.gov/feeds/natural-hazards.rss')), only: EN_TOPICS },
-  { id: 'nhc-ep', name: 'NOAA · Centro Nacional de Huracanes (Pacífico)', kind: 'noaa', max: 2, basins: ['pacific'], base: 'https://www.nhc.noaa.gov',
+  { id: 'nhc-ep', name: 'NOAA · Centro Nacional de Huracanes (Pacífico)', kind: 'noaa', max: 2, areal: true, basins: ['pacific'], base: 'https://www.nhc.noaa.gov',
     load: async () => parseRss(await get('https://www.nhc.noaa.gov/index-ep.xml')), only: /./ },
-  { id: 'nhc-at', name: 'NOAA · Centro Nacional de Huracanes (Atlántico)', kind: 'noaa', max: 2, basins: ['atlantic'], base: 'https://www.nhc.noaa.gov',
+  { id: 'nhc-at', name: 'NOAA · Centro Nacional de Huracanes (Atlántico)', kind: 'noaa', max: 2, areal: true, basins: ['atlantic'], base: 'https://www.nhc.noaa.gov',
     load: async () => parseRss(await get('https://www.nhc.noaa.gov/index-at.xml')), only: /./ },
 ];
 
@@ -144,6 +166,7 @@ const stale = new Map(); // última lista buena por fuente, por si una falla
 // Texto de una nota de gob.mx (solo el cuerpo del artículo), para saber qué estados menciona.
 // Las notas no cambian una vez publicadas: el resultado se recuerda (acotado) y no se vuelve a pedir.
 const bodyCache = new Map();
+const haystacks = new Map(); // id de noticia -> texto plegado (sin acentos, minúsculas)
 async function articleText(link) {
   if (bodyCache.has(link)) return bodyCache.get(link);
   let body = '';
@@ -170,12 +193,19 @@ async function loadSource(src) {
     const items = await Promise.all(picked.map(async (i) => {
       const body = src.body ? await articleText(i.link) : '';
       const haystack = `${i.title} ${i.summary || ''} ${body}`;
-      return { id: `${src.id}:${i.link}`, title: i.title, link: i.link, date: i.date, summary: i.summary || '', image: i.image || null,
+      const item = { id: `${src.id}:${i.link}`, title: i.title, link: i.link, date: i.date, summary: i.summary || '', image: i.image || null,
         source: src.name, kind: src.kind, lang: src.lang || (src.kind === 'nasa' || src.kind === 'noaa' ? 'en' : 'es'),
-        // Etiquetas geográficas para filtrar por la zona del usuario.
+        // Etiquetas geográficas para filtrar por la zona o el radio del usuario.
         states: findStates(haystack),
         basins: [...new Set([...(src.basins || []), ...(i.basins || []), ...(src.kind === 'nasa' ? findBasinsStrict(haystack) : findBasins(haystack))])],
-        regions: i.regions || [] };
+        regions: i.regions || [],
+        geo: i.geo || null,                 // punto (lat/lon) del evento, si lo tiene
+        areal: !!(i.areal || src.areal) };  // fenómeno extenso (ciclón, aviso de cuenca): no tiene sentido medirlo en km
+      if (src.body) { // texto plegado para buscar el municipio del usuario al responder (acotado)
+        if (haystacks.size >= 400) haystacks.delete(haystacks.keys().next().value);
+        haystacks.set(item.id, fold(haystack));
+      }
+      return item;
     }));
     stale.set(src.id, items);
     return { items };
@@ -188,7 +218,13 @@ export async function getNews() {
   if (cache.data && Date.now() - cache.at < TTL_MS) return cache.data;
   const results = await Promise.all(SOURCES.map(loadSource));
   const seen = new Set();
-  const items = results.flatMap((r) => r.items)
+  const all = results.flatMap((r) => r.items);
+  // GDACS y el USGS reportan los mismos sismos: se conserva el del USGS (trae magnitud y lugar) si hay uno a menos de ~0.3°.
+  const quakes = all.filter((i) => i.kind === 'usgs' && i.geo).map((i) => i.geo);
+  const dupQuake = (i) => i.kind === 'gdacs' && /^Sismo/.test(i.title) && i.geo
+    && quakes.some((g) => Math.abs(g.lat - i.geo.lat) < 0.3 && Math.abs(g.lon - i.geo.lon) < 0.3);
+  const items = all
+    .filter((i) => !dupQuake(i))
     .filter((i) => !/no tropical cyclones/i.test(i.title)) // aviso vacío del NHC: no aporta
     .sort((a, b) => b.date.localeCompare(a.date))
     .filter((i) => { const k = i.title.toLowerCase().replace(/\W+/g, ' ').trim(); return seen.has(k) ? false : (seen.add(k), true); })
@@ -197,6 +233,29 @@ export async function getNews() {
   // No se cachea una respuesta totalmente vacía por error de red; se reintenta en la siguiente petición.
   if (items.length) cache = { at: Date.now(), data };
   return data;
+}
+
+const GENERIC_MUNI = new Set(['centro', 'juarez', 'hidalgo', 'morelos', 'victoria', 'zaragoza', 'allende', 'guerrero', 'independencia', 'libertad',
+  'reforma', 'progreso', 'union', 'norte', 'sur', 'este', 'oeste', 'benito juarez', 'la union']);
+
+/**
+ * Marca cada noticia con `muni: true` si menciona el municipio del usuario (y, si se da, su estado).
+ * Se calcula al responder, sobre la lista en caché: el municipio llega en el cuerpo de un POST y no se guarda.
+ */
+export async function getNewsFor({ muni, estado } = {}) {
+  const data = await getNews();
+  const key = fold(String(muni || '')).split(' de ')[0].trim();
+  if (key.length < 4 || key.length > 60) return data;
+  const esc = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Nombres genéricos ("Centro", "Juárez"...) chocan con frases comunes: se exige "municipio/alcaldía/ciudad de ...".
+  const prefix = GENERIC_MUNI.has(key) ? '(?:municipio|alcaldia|ciudad) de ' : '';
+  const re = new RegExp(`(^|[^a-z])${prefix}${esc}(?![a-z])`);
+  const items = data.items.map((i) => {
+    const hay = haystacks.get(i.id) ?? fold(i.title);
+    const stateOk = !estado || i.states.some((s) => sameState(s, estado));
+    return { ...i, muni: stateOk && re.test(hay) };
+  });
+  return { ...data, items };
 }
 
 export const _test = { parseRss, parseGobMx, text };
