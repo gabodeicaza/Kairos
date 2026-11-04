@@ -1,0 +1,9 @@
+{
+  "name": "kairos-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Demo web de Kairos y API de noticias oficiales",
+  "scripts": { "start": "node server/server.js" },
+  "engines": { "node": ">=18" }
+}

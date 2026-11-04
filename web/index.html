@@ -111,6 +111,16 @@ nav button{flex:1;border:0;background:none;padding:12px 0 14px;font:inherit;font
 nav button svg{width:30px;height:30px}
 nav button.on{color:var(--accent)}
 @media(min-width:460px){#app{margin-top:0;box-shadow:0 0 40px rgba(30,40,80,.12)}}
+
+/* Noticias oficiales */
+.newshead{display:flex;justify-content:space-between;align-items:baseline;margin:26px 0 8px}
+.newshead h2{margin:0;font-size:22px;font-weight:700}
+.lnk{border:0;background:none;color:var(--accent);font:inherit;font-weight:600;font-size:14px;cursor:pointer;padding:4px 0}
+.tabs.sm{gap:20px}.tabs.sm button{font-size:15px}
+.news{display:flex;gap:14px;align-items:center;background:#fff;border-radius:24px;padding:16px 18px;margin-bottom:12px;text-decoration:none;color:inherit}
+.news .nb{flex:1;min-width:0}
+.news .nt{font-weight:600;font-size:15px;line-height:1.3;margin:8px 0 6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.news img{width:76px;height:76px;border-radius:18px;object-fit:cover;flex:none;background:#EEF0F5}
 </style>
 </head>
 <body>
@@ -300,6 +310,47 @@ function header(){
 }
 const scene=(label,color,fn)=>`<button class="scene" style="background:${color}" onclick="${fn}">${label}</button>`;
 
+/* ===== Noticias oficiales (/api/news, las agrega el servidor de Kairos) ===== */
+const KIND_COLOR={'proteccion-civil':'#E8261C',gobierno:'#1F8B5F',nasa:'#2F6BFF',noaa:'#6A55D3'};
+const KIND_LABEL={'proteccion-civil':'Protección Civil',gobierno:'Gobierno de México',nasa:'NASA',noaa:'NOAA'};
+state.news={items:[],loading:true,error:null,filter:'all',all:false};
+async function refreshNews(){
+  state.news.loading=true; state.news.error=null; render();
+  try{
+    const r=await fetch('/api/news'); if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json(); state.news.items=Array.isArray(d.items)?d.items:[];
+  }catch(e){ state.news.error='No se pudieron cargar las noticias.'; }
+  state.news.loading=false; render();
+}
+function setNewsFilter(k){ state.news.filter=k; state.news.all=false; render(); }
+function ago(iso){
+  const ms=Date.now()-Date.parse(iso);
+  if(ms<HOUR) return 'hace '+Math.max(1,Math.round(ms/MIN))+' min';
+  if(ms<24*HOUR) return 'hace '+Math.round(ms/HOUR)+' h';
+  if(ms<7*24*HOUR) return 'hace '+Math.round(ms/(24*HOUR))+' d';
+  return new Date(iso).toLocaleDateString('es-MX',{day:'numeric',month:'short'});
+}
+function newsSection(){
+  const n=state.news;
+  const kinds=[['all','Todas'],['proteccion-civil','Protección Civil'],['gobierno','Gobierno'],['nasa','NASA'],['noaa','NOAA']];
+  let h=`<div class="newshead" id="news"><h2>Noticias oficiales</h2><button class="lnk" onclick="refreshNews()">Actualizar</button></div>
+    <div class="tabs sm">`+kinds.map(([k,l])=>`<button class="${n.filter===k?'on':''}" onclick="setNewsFilter('${k}')">${l}</button>`).join('')+`</div>`;
+  if(n.loading&&!n.items.length) return h+`<div class="card muted">Cargando noticias de fuentes oficiales…</div>`;
+  if(n.error&&!n.items.length) return h+`<div class="card muted">${n.error} <button class="btn ghost" onclick="refreshNews()">Reintentar</button></div>`;
+  const list=n.items.filter(i=>n.filter==='all'||i.kind===n.filter);
+  if(!list.length) return h+`<div class="card muted">Sin noticias recientes de esta fuente.</div>`;
+  const shown=n.all?list:list.slice(0,6);
+  h+=shown.map(i=>{
+    const link=/^https:\/\//.test(i.link)?i.link:'#', img=/^https:\/\//.test(i.image||'')?i.image:'';
+    return `<a class="news" href="${esc(link)}" target="_blank" rel="noopener noreferrer"><div class="nb">
+      <div class="row" style="gap:8px;flex-wrap:wrap">${pill(KIND_LABEL[i.kind]||i.source,KIND_COLOR[i.kind]||'#8A90A0')}<span class="muted small">${ago(i.date)}${i.lang==='en'?' · EN':''}</span></div>
+      <div class="nt">${esc(i.title)}</div><div class="muted small">${esc(i.source)} ↗</div></div>
+      ${img?`<img src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`:''}</a>`;
+  }).join('');
+  if(list.length>6) h+=`<button class="btn ghost" style="width:100%;margin-bottom:6px" onclick="state.news.all=!state.news.all;render()">${n.all?'Ver menos':'Ver todas ('+list.length+')'}</button>`;
+  return h+`<div class="muted small" style="margin:6px 4px 16px">Fuentes: gob.mx (Protección Civil, Conagua y Segob), NASA y NOAA. Se actualizan cada 10 minutos.</div>`;
+}
+
 function home(){
   const items=activeAlerts(), t=items[0];
   let h=header();
@@ -308,9 +359,10 @@ function home(){
       <div class="big">Todo en calma</div>
       <div class="stats3"><div><b>0</b><span>Alertas activas</span></div><div><b>NASA</b><span>Fuente de datos</span></div>
       <div><b style="color:${state.loading?'#FF9D00':'#22B07D'}">${state.loading?'…':'OK'}</b><span>${state.loading?'Buscando':'Sin riesgo'}</span></div></div></div>
-      <div class="scenes">${scene('Simular alerta',"#6A55D3","go('settings')")}${scene('Actualizar',"#3A94D0",'refreshReal()')}${scene('Mi hogar',"#22B07D","go('settings')")}</div>
+      <div class="scenes">${scene('Simular alerta',"#6A55D3","go('settings')")}${scene('Actualizar',"#3A94D0",'refreshReal();refreshNews()')}${scene('Mi hogar',"#22B07D","go('settings')")}</div>
       <div class="two"><div class="card"><div class="ttl">Prepárate</div><div class="val">72<small> h</small></div><div class="muted small mini">Kit de emergencia familiar para tres días.</div></div>
       <div class="card"><div class="ttl">Ruta segura</div><div class="val">1<small> plan</small></div><div class="muted small mini">Ubica tu refugio y tu ruta a zona alta.</div></div></div>`;
+    h+=newsSection();
     return h;
   }
   const a=t.alert, steps=t.steps, total=Math.max(1,steps.length), done=doneCount(t);
@@ -331,7 +383,7 @@ function home(){
         <div><div class="lab"><span class="dot" style="background:#FFB400"></span>Ahora</div><div class="num">${udone}</div><div class="unit">/${unl.length} activos</div></div>
         <div><div class="lab"><span class="dot" style="background:#2F7BFF"></span>${tLabel}</div><div class="num">${tn}</div><div class="unit">${tu}</div></div>
       </div><div class="strip">${stripHtml}</div></div>
-    <div class="scenes">${scene('Siguiente acción',"#22B07D","go('plan',null)")}${scene('Ver plan',"#3A94D0","go('plan',null)")}${scene('Simular',"#6A55D3","go('settings')")}${scene('Alertas',"#FF5B1F","go('alerts')")}</div>
+    <div class="scenes">${scene('Siguiente acción',"#22B07D","go('plan',null)")}${scene('Ver plan',"#3A94D0","go('plan',null)")}${scene('Simular',"#6A55D3","go('settings')")}${scene('Alertas',"#FF5B1F","go('alerts')")}${scene('Noticias',"#E8261C","document.getElementById('news').scrollIntoView({behavior:'smooth'})")}</div>
     <div class="card mods">`+Object.keys(CATS).map(c=>{
       const st=steps.filter(s=>s.cat===c), d=st.filter(s=>isDone(a.id,s.id)).length;
       return `<button onclick="go('plan','${c}')"><div class="ic" style="background:${CAT_COLOR[c]}22">${EMO[c]}<span class="badge" style="color:${CAT_COLOR[c]}">${d}/${st.length}</span></div>${CAT_SHORT[c]}</button>`;
@@ -343,6 +395,7 @@ function home(){
         <circle cx="${8+104*p3}" cy="${34-22*p3}" r="6" fill="#fff" stroke="#F0362B" stroke-width="3"/></svg></div>
       <div class="card"><div class="ttl">Por hacer ahora</div><div class="val">${rem}<small> min</small></div>
         <div class="mini row" style="gap:0"><svg width="84" height="64" viewBox="0 0 84 64"><circle cx="42" cy="20" r="18" fill="#FF8A2A"/><circle cx="25" cy="42" r="18" fill="#8B5CF6"/><circle cx="59" cy="42" r="18" fill="#2CC9B5"/></svg></div></div></div>`;
+  h+=newsSection();
   return h;
 }
 
@@ -402,7 +455,7 @@ function settings(){
     <label class="opt">Severidad<select id="ss">${opts(SEV_LABEL,s.severity)}</select></label>
     <label class="opt">Impacto en (horas)<input id="sd" type="number" min="0" max="72" value="${s.hours||30}" style="width:90px"></label>
     <div class="row" style="margin-top:8px"><button class="btn" onclick="startSim()">Activar</button><button class="btn ghost" onclick="stopSim()">Quitar</button></div></div>
-  <div class="card"><b>Datos y privacidad</b><p class="muted small">Esta demo web corre toda en tu navegador. No se envía información personal a ningún servidor; solo se consulta la API pública de NASA EONET.</p>
+  <div class="card"><b>Datos y privacidad</b><p class="muted small">Tu perfil y tu avance se guardan solo en este navegador y no se envían a ningún servidor. La página consulta NASA EONET y el servidor de Kairos, que reúne noticias oficiales; esas consultas no incluyen datos de tu hogar.</p>
     <button class="btn ghost" style="padding-left:0" onclick="resetAll()">Borrar mis datos</button></div>`;
 }
 
@@ -423,7 +476,7 @@ function resetAll(){ ['done','sim','profile','zoneHigh','region'].forEach(k=>{tr
   state.done={};state.sim=null;state.profile={groundFloor:false,hasChildren:false,hasElderly:false,hasPets:false};state.zoneHigh=false; render(); }
 
 setInterval(()=>{ state.now=Date.now(); if(state.tab!=='settings') render(); },60000);
-render(); refreshReal();
+render(); refreshReal(); refreshNews();
 </script>
 </body>
 </html>
