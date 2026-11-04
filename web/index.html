@@ -137,6 +137,15 @@ nav button.on{color:var(--accent)}
 .rad button{border:0;border-radius:50px;padding:9px 16px;font:inherit;font-size:14px;font-weight:600;background:#fff;color:var(--text);cursor:pointer}
 .rad button.on{background:var(--accent);color:#fff}
 .rad button:disabled{opacity:.4;cursor:not-allowed}
+
+/* Perfil y cuenta */
+.fld{margin:10px 0}.fld label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+.fld input,.fld select{width:100%;box-sizing:border-box;font:inherit;padding:11px 14px;border-radius:16px;border:1px solid var(--track);background:#fff;color:var(--text)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.note{background:#EAF1FF;color:#1F4FB0;border-radius:14px;padding:10px 14px;margin:8px 0;font-size:14px}.note.bad{background:#FDECEA;color:#B3261E}
+.prot{background:linear-gradient(135deg,#EAF7EF,#EAF1FF)}
+.bar{height:10px;border-radius:6px;background:var(--track);margin:10px 0;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent);border-radius:6px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -296,9 +305,10 @@ const ICONS={
   home:'<path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/>',
   plan:'<rect x="4" y="4" width="16" height="16" rx="4"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/>',
   alerts:'<path d="M6 17v-6a6 6 0 0 1 12 0v6l1.5 2h-15zM10 21a2 2 0 0 0 4 0"/>',
-  settings:'<circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="9.5" r="3.2"/><path d="M6.2 18.4c.9-2.6 3.1-3.9 5.8-3.9s4.9 1.3 5.8 3.9"/>',
+  settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+  profile:'<circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="9.5" r="3.2"/><path d="M6.2 18.4c.9-2.6 3.1-3.9 5.8-3.9s4.9 1.3 5.8 3.9"/>',
 };
-const NAV=[['home','Inicio'],['plan','Plan'],['alerts','Alertas'],['settings','Ajustes']];
+const NAV=[['home','Inicio'],['plan','Plan'],['alerts','Alertas'],['profile','Perfil'],['settings','Ajustes']];
 let openKey=null;
 
 /* Arco de 270° con la abertura abajo, como el anillo de Huawei Health */
@@ -638,7 +648,7 @@ function plan(){
 function openStep(key){ openKey=openKey===key?null:key; render(); }
 
 function render(){
-  document.getElementById('app').innerHTML={home,plan,alerts,settings}[state.tab]();
+  document.getElementById('app').innerHTML={home,plan,alerts,profile,settings}[state.tab]();
   document.getElementById('nav').innerHTML=NAV.map(([k,l])=>`<button class="${state.tab===k?'on':''}" onclick="go('${k}')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[k]}</svg>${l}</button>`).join('');
 }
@@ -659,26 +669,209 @@ function settings(){
   return `<h1>Ajustes</h1>
   <div class="card"><b>Región piloto</b><div style="margin-top:10px"><select id="reg" onchange="setRegion(this.value)">${opts(Object.fromEntries(Object.entries(REGIONS).map(([k,v])=>[k,v.name])),state.region)}</select></div>
     <button class="btn ghost" style="padding-left:0" onclick="refreshReal()">Actualizar alertas de NASA</button></div>
-  <div class="card"><b>Tu hogar</b><div class="muted small">Personaliza el plan. Se guarda solo en este navegador.</div>
-    ${[['groundFloor','Vivienda en planta baja'],['hasChildren','Niñas y niños'],['hasElderly','Personas adultas mayores'],['hasPets','Mascotas']].map(([k,l])=>
-      `<label class="opt">${l}<input class="sw" type="checkbox" ${state.profile[k]?'checked':''} onchange="setProfile('${k}',this.checked)"></label>`).join('')}
-    ${state.zone?`<div class="muted small" style="padding:8px 0">Tu zona se detecta con los mapas del CENAPRED (${esc(state.zone.municipio)}). Se muestra en Inicio.</div>`
-      :`<label class="opt">Zona de riesgo alto (manual)<input class="sw" type="checkbox" ${state.zoneHigh?'checked':''} onchange="setZone(this.checked)"></label>
-        <button class="btn ghost" style="padding-left:0" onclick="go('home');locate()">Detectar automáticamente</button>`}</div>
+  <div class="card"><b>Tu hogar y tu cuenta</b><div class="muted small" style="margin:6px 0 10px">Las preguntas sobre tu hogar, vivienda, contactos y kit ahora están en la pestaña Perfil.${state.zone?` Tu zona se detecta con los mapas del CENAPRED (${esc(state.zone.municipio)}).`:''}</div>
+    <button class="btn" onclick="go('profile')">Ir a Perfil</button>
+    ${state.zone?'':`<label class="opt" style="margin-top:8px">Zona de riesgo alto (manual)<input class="sw" type="checkbox" ${state.zoneHigh?'checked':''} onchange="setZone(this.checked)"></label>
+      <button class="btn ghost" style="padding-left:0" onclick="go('home');locate()">Detectar automáticamente</button>`}</div>
   <div class="card"><b>Simulación</b><div class="muted small" style="margin-bottom:10px">Crea una alerta de prueba para ver el tablero completo.</div>
     <label class="opt">Amenaza<select id="sh">${opts(HAZARDS,s.hazard)}</select></label>
     <label class="opt">Severidad<select id="ss">${opts(SEV_LABEL,s.severity)}</select></label>
     <label class="opt">Impacto en (horas)<input id="sd" type="number" min="0" max="72" value="${s.hours||30}" style="width:90px"></label>
     <div class="row" style="margin-top:8px"><button class="btn" onclick="startSim()">Activar</button><button class="btn ghost" onclick="stopSim()">Quitar</button></div></div>
-  <div class="card"><b>Datos y privacidad</b><p class="muted small">Tu perfil y tu avance se guardan solo en este navegador y no se envían a ningún servidor. La página consulta NASA EONET y el servidor de Kairos, que reúne noticias oficiales y el pronóstico de Open-Meteo; esas consultas solo indican la región piloto, nunca datos de tu hogar. Si detectas tu zona, tu ubicación (redondeada a ~1 km) viaja en el cuerpo de una petición para consultar el Atlas Nacional de Riesgos del CENAPRED y no se guarda en el servidor. En este navegador se recuerdan tu municipio, su grado de peligro y esa ubicación aproximada, solo para medir distancias. Al pedir noticias se envía únicamente el nombre de tu municipio y estado.</p>
+  <div class="card"><b>Datos y privacidad</b><p class="muted small">Sin cuenta, tu perfil y tu avance se guardan solo en este navegador. Si creas una cuenta (pestaña Perfil), se guardan también en tu cuenta, protegidos por reglas que solo te dejan ver tus propios datos; ahí mismo puedes descargarlos o eliminarlos. La página consulta NASA EONET y el servidor de Kairos (noticias oficiales y pronóstico de Open-Meteo); esas consultas solo indican la región, nunca datos de tu hogar. Si detectas tu zona, tu ubicación (redondeada a ~1 km) viaja en el cuerpo de una petición para consultar el Atlas Nacional de Riesgos del CENAPRED y no se guarda en el servidor ni en tu cuenta; en este navegador se recuerdan tu municipio, su grado de peligro y esa ubicación aproximada para medir distancias. Al pedir noticias solo se envía el nombre de tu municipio y estado.</p>
     <button class="btn ghost" style="padding-left:0" onclick="resetAll()">Borrar mis datos</button></div>`;
+}
+
+/* ===== Cuenta (Supabase Auth + PostgREST con fetch; sin librerías) ===== */
+const AUTH={cfg:null,session:load('sb',null),mode:'in',msg:null,busy:false,syncState:null,confirmDelete:false};
+const signedIn=()=>!!(AUTH.cfg&&AUTH.session&&AUTH.session.user);
+async function loadAuthCfg(){
+  try{ const r=await fetch('/api/config'); if(r.ok){ const c=await r.json(); if(c.url&&c.anonKey&&/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(c.url)) AUTH.cfg=c; } }catch(e){}
+  if(AUTH.cfg&&AUTH.session) await cloudPull();
+  render();
+}
+async function sb(path,opt={}){
+  const {method='GET',body,token=true,headers={}}=opt;
+  const go=()=>fetch(AUTH.cfg.url+path,{method,headers:{apikey:AUTH.cfg.anonKey,'Content-Type':'application/json',
+    ...(token&&AUTH.session?{Authorization:'Bearer '+AUTH.session.access_token}:{}),...headers},body:body===undefined?undefined:JSON.stringify(body)});
+  let r=await go();
+  if(r.status===401&&token&&AUTH.session&&AUTH.session.refresh_token&&await refreshSession()) r=await go();
+  return r;
+}
+function setSession(j){
+  AUTH.session={access_token:j.access_token,refresh_token:j.refresh_token,user:{id:j.user.id,email:j.user.email}};
+  save('sb',AUTH.session);
+}
+async function refreshSession(){
+  try{
+    const r=await fetch(AUTH.cfg.url+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{apikey:AUTH.cfg.anonKey,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:AUTH.session.refresh_token})});
+    if(!r.ok) throw 0; setSession(await r.json()); return true;
+  }catch(e){ AUTH.session=null; save('sb',null); return false; }
+}
+const authErr=async r=>{ try{ const j=await r.json(); const m=j.msg||j.error_description||j.message||''; return /invalid login/i.test(m)?'Correo o contraseña incorrectos.':/already|registered/i.test(m)?'Ese correo ya tiene cuenta. Inicia sesión.':/rate|too many/i.test(m)?'Demasiados intentos. Espera un minuto.':'No se pudo completar ('+(m||r.status)+').'; }catch(e){ return 'No se pudo completar ('+r.status+').'; } };
+function setAuthMode(m){ AUTH.mode=m; AUTH.msg=null; render(); }
+async function submitAuth(){
+  const email=document.getElementById('aem').value.trim(), pw=document.getElementById('apw').value;
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { AUTH.msg={bad:true,t:'Escribe un correo válido.'}; return render(); }
+  if(pw.length<8) { AUTH.msg={bad:true,t:'La contraseña debe tener al menos 8 caracteres.'}; return render(); }
+  AUTH.busy=true; AUTH.msg=null; render();
+  try{
+    const up=AUTH.mode==='up';
+    const r=await sb(up?'/auth/v1/signup':'/auth/v1/token?grant_type=password',{method:'POST',token:false,body:{email,password:pw}});
+    if(!r.ok) AUTH.msg={bad:true,t:await authErr(r)};
+    else{
+      const j=await r.json();
+      if(j.access_token){ setSession(j); await cloudPull(); AUTH.mode='in'; }
+      else AUTH.msg={t:'Te enviamos un correo para confirmar tu cuenta. Ábrelo y luego inicia sesión.'};
+    }
+  }catch(e){ AUTH.msg={bad:true,t:'Sin conexión con el servicio de cuentas. Inténtalo de nuevo.'}; }
+  AUTH.busy=false; render();
+}
+async function signOut(){
+  try{ await sb('/auth/v1/logout',{method:'POST'}); }catch(e){}
+  AUTH.session=null; save('sb',null); AUTH.syncState=null;
+  clearLocalData();       // en un dispositivo compartido no debe quedar tu perfil
+  render();
+}
+async function deleteAccount(){
+  if(!AUTH.confirmDelete){ AUTH.confirmDelete=true; return render(); }
+  AUTH.busy=true; render();
+  try{
+    const r=await sb('/rest/v1/rpc/delete_my_account',{method:'POST',body:{}});
+    if(!r.ok) throw 0;
+    AUTH.session=null; save('sb',null); AUTH.syncState=null; clearLocalData(); AUTH.msg={t:'Tu cuenta y tus datos en la nube se eliminaron.'};
+  }catch(e){ AUTH.msg={bad:true,t:'No se pudo eliminar. Inténtalo de nuevo.'}; }
+  AUTH.busy=false; AUTH.confirmDelete=false; render();
+}
+const cloudPayload=()=>({profile:state.profile,done:state.done,region:state.region});
+async function cloudPull(){
+  try{
+    const r=await sb('/rest/v1/profiles?select=data&limit=1');
+    if(!r.ok) throw 0;
+    const rows=await r.json();
+    if(rows[0]&&rows[0].data&&rows[0].data.profile){
+      const d=rows[0].data;
+      state.profile=cleanProfile(d.profile); state.done=(d.done&&typeof d.done==='object')?d.done:{};
+      if(d.region&&REGIONS[d.region]) state.region=d.region;
+      save('profile',state.profile); save('done',state.done); save('region',state.region);
+      AUTH.syncState='ok';
+    } else await cloudPush();
+  }catch(e){ AUTH.syncState='error'; }
+}
+let syncTimer=null;
+function queueSync(){ if(!signedIn()) return; AUTH.syncState='pending'; clearTimeout(syncTimer); syncTimer=setTimeout(cloudPush,900); }
+async function cloudPush(){
+  if(!signedIn()) return;
+  try{
+    const r=await sb('/rest/v1/profiles?on_conflict=user_id',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:{user_id:AUTH.session.user.id,data:cloudPayload()}});
+    AUTH.syncState=r.ok?'ok':'error';
+  }catch(e){ AUTH.syncState='error'; }
+  if(state.tab==='profile') { const el=document.getElementById('syncst'); if(el) el.innerHTML=syncLabel(); }
+}
+const syncLabel=()=>AUTH.syncState==='ok'?'✓ Guardado en tu cuenta':AUTH.syncState==='pending'?'Guardando…':AUTH.syncState==='error'?'⚠ No se pudo guardar en la nube (se conserva en este navegador)':'';
+function exportData(){
+  try{
+    const blob=new Blob([JSON.stringify({exportado:new Date().toISOString(),cuenta:signedIn()?AUTH.session.user.email:null,...cloudPayload(),zona:state.zone},null,2)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='kairos-mis-datos.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  }catch(e){}
+}
+
+/* ===== Perfil: preguntas ampliadas ===== */
+const HOME_KIT=[['water','Agua: 3 litros por persona al día, para 3 días'],['food','Comida enlatada o que no necesita refrigeración'],['flashlight','Linterna con pilas de repuesto'],
+  ['radio','Radio de pilas o de manivela'],['firstAid','Botiquín de primeros auxilios'],['docs','Copias de documentos en bolsa impermeable'],['powerBank','Batería externa para el celular'],['cash','Efectivo en billetes pequeños']];
+const defaultProfile=()=>({groundFloor:false,hasChildren:false,hasElderly:false,hasPets:false,
+  adults:1,children:0,elderly:0,pets:0,mobility:false,housing:'casa',floor:'0',hasCar:false,meeting:'',
+  contacts:[{name:'',phone:''},{name:'',phone:''},{name:'',phone:''}],kit:{}});
+const txt=(v,n)=>typeof v==='string'?v.replace(/[<>]/g,'').slice(0,n):'';
+const cnt=(v,max)=>Math.max(0,Math.min(max,Math.floor(Number(v))||0));
+function cleanProfile(p){
+  const d=defaultProfile(); p=(p&&typeof p==='object')?p:{};
+  const o={...d,...p};
+  o.adults=cnt(o.adults,20)||1; o.children=cnt(o.children,20); o.elderly=cnt(o.elderly,20); o.pets=cnt(o.pets,30);
+  o.housing=['casa','depto','otro'].includes(o.housing)?o.housing:'casa'; o.floor=String(cnt(o.floor,100)); o.meeting=txt(o.meeting,80);
+  o.mobility=!!o.mobility; o.hasCar=!!o.hasCar;
+  o.contacts=d.contacts.map((_,i)=>({name:txt(p.contacts&&p.contacts[i]&&p.contacts[i].name,60),phone:txt(p.contacts&&p.contacts[i]&&p.contacts[i].phone,20).replace(/[^\d+\s()-]/g,'')}));
+  o.kit={}; HOME_KIT.forEach(([k])=>{ if(p.kit&&p.kit[k]) o.kit[k]=true; });
+  return derive(o);
+}
+// El motor de reglas del plan usa estas cuatro banderas: se calculan a partir de las respuestas.
+function derive(p){ p.hasChildren=p.children>0; p.hasElderly=p.elderly>0||p.mobility; p.hasPets=p.pets>0; p.groundFloor=Number(p.floor)<=0; return p; }
+state.profile=cleanProfile(state.profile);
+function setField(k,v,rerender){
+  const n=['adults','children','elderly','pets'];
+  state.profile[k]=n.includes(k)?cnt(v,k==='pets'?30:20)||(k==='adults'?1:0):k==='floor'?String(cnt(v,100)):k==='meeting'?txt(v,80):v;
+  derive(state.profile); save('profile',state.profile); queueSync(); if(rerender) render();
+}
+function setContact(i,f,v){ state.profile.contacts[i][f]=f==='phone'?txt(v,20).replace(/[^\d+\s()-]/g,''):txt(v,60); save('profile',state.profile); queueSync(); }
+function setKit(k,v){ if(v) state.profile.kit[k]=true; else delete state.profile.kit[k]; save('profile',state.profile); queueSync(); render(); }
+
+const shield=(ok,t)=>`<div class="row" style="gap:10px;align-items:flex-start;margin:8px 0"><span style="font-size:18px">${ok?'🔒':'⚠️'}</span><span class="small" style="flex:1">${t}</span></div>`;
+function protectionPanel(){
+  const cloud=!!AUTH.cfg;
+  return `<div class="card prot"><div class="row" style="gap:10px"><span style="font-size:24px">🛡️</span><b style="font-size:18px">Cómo protegemos tus datos</b></div>
+    ${cloud?`
+    ${shield(true,'<b>Solo tú ves tus datos.</b> La base de datos aplica reglas por usuario (Row Level Security): ninguna otra cuenta puede leer ni cambiar tu perfil, ni siquiera conociendo tu identificador.')}
+    ${shield(true,'<b>Tu contraseña no pasa por Kairos.</b> La gestiona el servicio de cuentas (Supabase Auth), que la guarda cifrada con hash. Nunca la vemos ni la guardamos.')}
+    ${shield(true,'<b>Conexión cifrada (HTTPS)</b> entre tu dispositivo, Kairos y la base de datos; los datos también se cifran en reposo en el proveedor.')}
+    ${shield(true,'<b>No vendemos ni compartimos</b> tus datos y no los usamos para publicidad. Solo sirven para personalizar tu plan.')}
+    ${shield(true,'<b>Tú mandas:</b> puedes descargar todo lo que guardamos y eliminar tu cuenta y tus datos cuando quieras, desde aquí.')}
+    ${shield(false,'<b>Límite honesto:</b> no es cifrado de extremo a extremo. Quien administra el proyecto de Kairos podría ver la base de datos con credenciales de administrador. Por eso no pedimos datos de salud ni documentos, y el teléfono de contactos es opcional.')}`
+    :`${shield(true,'<b>Tus datos se quedan en este navegador.</b> No hay cuenta ni base de datos configurada, así que nada de tu perfil sale de tu dispositivo.')}
+    ${shield(false,'Si borras los datos del navegador o cambias de dispositivo, se pierden. Puedes descargarlos con el botón de abajo.')}`}
+    ${shield(true,'<b>Tu ubicación</b> se redondea a ~1 km, se queda en tu navegador y nunca se guarda en nuestro servidor ni en tu cuenta.')}
+  </div>`;
+}
+function accountCard(){
+  if(!AUTH.cfg) return `<div class="card"><b>Cuenta</b><p class="muted small">Las cuentas aún no están activadas en este servidor. Mientras tanto tu perfil se guarda en este navegador.</p></div>`;
+  const m=AUTH.msg?`<div class="note ${AUTH.msg.bad?'bad':''}">${esc(AUTH.msg.t)}</div>`:'';
+  if(signedIn()) return `<div class="card"><div class="row"><b style="flex:1">Tu cuenta</b><span id="syncst" class="muted small">${syncLabel()}</span></div>
+    <div style="margin:8px 0;font-weight:600">${esc(AUTH.session.user.email)}</div>${m}
+    <div class="muted small">Tu perfil se sincroniza con tu cuenta y está disponible en cualquier dispositivo donde inicies sesión.</div>
+    <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap"><button class="btn ghost" onclick="exportData()">Descargar mis datos</button><button class="btn ghost" onclick="signOut()">Cerrar sesión</button></div>
+    <div style="margin-top:6px">${AUTH.confirmDelete?`<div class="note bad">Se eliminará tu cuenta y todos tus datos de la nube. No se puede deshacer.</div>
+      <div class="row" style="gap:8px"><button class="btn" style="background:#D93025" ${AUTH.busy?'disabled':''} onclick="deleteAccount()">Sí, eliminar definitivamente</button><button class="btn ghost" onclick="AUTH.confirmDelete=false;render()">Cancelar</button></div>`
+      :`<button class="btn ghost" style="padding-left:0;color:#D93025" onclick="deleteAccount()">Eliminar mi cuenta y mis datos</button>`}</div></div>`;
+  const up=AUTH.mode==='up';
+  return `<div class="card"><b>${up?'Crea tu cuenta':'Inicia sesión'}</b>
+    <p class="muted small">Guarda tu perfil y tu avance para tenerlos en cualquier dispositivo. Es opcional: Kairos funciona igual sin cuenta.</p>${m}
+    <div class="fld"><label>Correo</label><input id="aem" type="email" autocomplete="email" placeholder="tu@correo.com"></div>
+    <div class="fld"><label>Contraseña (mínimo 8 caracteres)</label><input id="apw" type="password" autocomplete="${up?'new-password':'current-password'}" onkeydown="if(event.key==='Enter')submitAuth()"></div>
+    <div class="row" style="gap:8px;margin-top:10px"><button class="btn" ${AUTH.busy?'disabled':''} onclick="submitAuth()">${AUTH.busy?'Espera…':up?'Crear cuenta':'Entrar'}</button>
+    <button class="btn ghost" onclick="setAuthMode('${up?'in':'up'}')">${up?'Ya tengo cuenta':'Crear cuenta'}</button></div></div>`;
+}
+function profile(){
+  const p=state.profile, kitN=HOME_KIT.filter(([k])=>p.kit[k]).length, pct=Math.round(kitN/HOME_KIT.length*100);
+  const num=(k,l,max)=>`<div class="fld half"><label>${l}</label><input type="number" inputmode="numeric" min="0" max="${max}" value="${p[k]}" onchange="setField('${k}',this.value)"></div>`;
+  const sw=(k,l)=>`<label class="opt">${l}<input class="sw" type="checkbox" ${p[k]?'checked':''} onchange="setField('${k}',this.checked)"></label>`;
+  return `<h1>Perfil</h1>
+  ${accountCard()}
+  ${protectionPanel()}
+  <div class="card"><b>Tu hogar</b><div class="muted small" style="margin-bottom:8px">Con esto el plan te pide justo lo que necesitas (por ejemplo, rutas lentas si hay personas mayores).</div>
+    <div class="grid2">${num('adults','Personas adultas',20)}${num('children','Niñas y niños',20)}${num('elderly','Personas adultas mayores',20)}${num('pets','Mascotas',30)}</div>
+    ${sw('mobility','Alguien tiene movilidad reducida')}</div>
+  <div class="card"><b>Tu vivienda</b>
+    <div class="grid2"><div class="fld half"><label>Tipo</label><select onchange="setField('housing',this.value)">${[['casa','Casa'],['depto','Departamento'],['otro','Otro']].map(([v,l])=>`<option value="${v}" ${p.housing===v?'selected':''}>${l}</option>`).join('')}</select></div>
+    ${num('floor','Piso (0 = planta baja)',100)}</div>
+    ${sw('hasCar','Tenemos auto')}
+    <div class="fld"><label>Punto de reunión de la familia (opcional)</label><input type="text" maxlength="80" value="${esc(p.meeting)}" placeholder="Ej. parque frente a la escuela" onchange="setField('meeting',this.value)"></div></div>
+  <div class="card"><b>Contactos de emergencia</b><div class="muted small" style="margin-bottom:8px">Opcional. Solo tú los ves; no los usamos para enviar mensajes.</div>
+    ${p.contacts.map((c,i)=>`<div class="grid2"><div class="fld half"><label>Nombre</label><input type="text" maxlength="60" value="${esc(c.name)}" onchange="setContact(${i},'name',this.value)"></div>
+      <div class="fld half"><label>Teléfono</label><input type="tel" maxlength="20" value="${esc(c.phone)}" onchange="setContact(${i},'phone',this.value)"></div></div>`).join('')}</div>
+  <div class="card"><div class="row"><b style="flex:1">Tu kit de emergencia</b><span style="font-weight:700;color:var(--accent)">${kitN}/${HOME_KIT.length}</span></div>
+    <div class="bar"><i style="width:${pct}%"></i></div>
+    ${HOME_KIT.map(([k,l])=>`<label class="opt">${l}<input class="sw" type="checkbox" ${p.kit[k]?'checked':''} onchange="setKit('${k}',this.checked)"></label>`).join('')}
+    <div class="muted small" style="margin-top:6px">${kitN===HOME_KIT.length?'¡Tu kit está completo!':'Te faltan '+(HOME_KIT.length-kitN)+' cosas. Complétalas con calma antes de la temporada de lluvias.'}</div></div>
+  ${AUTH.cfg?'':`<div class="card"><button class="btn ghost" style="padding-left:0" onclick="exportData()">Descargar mis datos</button></div>`}`;
+}
+function clearLocalData(){
+  ['done','profile','zone','loc'].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
+  state.done={}; state.profile=defaultProfile(); state.zone=null; state.zoneStatus=null; state.loc=null;
 }
 
 /* ===== Acciones ===== */
 function go(tab,filter){ state.tab=tab; if(filter!==undefined) state.planFilter=filter; scrollTo(0,0); render(); }
-function toggle(aid,sid){ const k=aid+':'+sid; if(state.done[k]) delete state.done[k]; else state.done[k]=true; save('done',state.done); render(); }
+function toggle(aid,sid){ const k=aid+':'+sid; if(state.done[k]) delete state.done[k]; else state.done[k]=true; save('done',state.done); queueSync(); render(); }
 function setRegion(r){ state.region=r; save('region',r); refreshReal(); refreshForecast(); }
-function setProfile(k,v){ state.profile[k]=v; save('profile',state.profile); }
 function setZone(v){ state.zoneHigh=v; save('zoneHigh',v); }
 function startSim(){
   const hours=Math.max(0,Math.min(72,+document.getElementById('sd').value||0)), now=Date.now();
@@ -688,10 +881,10 @@ function startSim(){
 }
 function stopSim(){ state.sim=null; save('sim',null); render(); }
 function resetAll(){ ['done','sim','profile','zoneHigh','region','zone','loc','radius'].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
-  state.done={};state.sim=null;state.profile={groundFloor:false,hasChildren:false,hasElderly:false,hasPets:false};state.zoneHigh=false; state.zone=null; state.zoneStatus=null; state.loc=null; state.radius='region'; render(); }
+  state.sim=null;state.zoneHigh=false; state.radius='region'; clearLocalData(); render(); }   // borra solo este navegador; tu cuenta se elimina desde Perfil
 
-setInterval(()=>{ state.now=Date.now(); if(state.tab!=='settings') render(); },60000);
-render(); refreshReal(); refreshNews(); refreshForecast();
+setInterval(()=>{ state.now=Date.now(); if(state.tab!=='settings'&&state.tab!=='profile') render(); },60000);
+render(); refreshReal(); refreshNews(); refreshForecast(); loadAuthCfg();
 // Si el usuario ya dio permiso de ubicación antes, la zona se actualiza sola (nunca se vuelve a pedir permiso aquí).
 try{ if(navigator.permissions&&navigator.geolocation) navigator.permissions.query({name:'geolocation'}).then(p=>{ if(p.state==='granted') locate(); }).catch(()=>{}); }catch(e){}
 </script>

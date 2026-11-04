@@ -29,6 +29,13 @@ http.createServer(async (req, res) => {
   if (!allowed.includes(req.method)) return send(res, 405, 'Method Not Allowed', { Allow: allowed.join(', ') });
   try {
     if (pathname === '/healthz') return send(res, 200, 'ok');
+    if (pathname === '/api/config') {
+      // Datos PÚBLICOS por diseño de Supabase (URL del proyecto y clave "anon"): la protección real son las reglas RLS de la base.
+      // Nunca se expone aquí una clave secreta (service_role). Si no están configurados, la web funciona sin cuentas.
+      const url = process.env.SUPABASE_URL || '', anonKey = process.env.SUPABASE_ANON_KEY || '';
+      const valid = /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url) && anonKey.length > 20 && !/service_role/i.test(Buffer.from(anonKey.split('.')[1] || '', 'base64').toString());
+      return send(res, 200, JSON.stringify(valid ? { url, anonKey } : {}), { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    }
     if (pathname === '/api/news') {
       if (req.method === 'POST') {
         let body;
