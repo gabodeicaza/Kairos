@@ -1,6 +1,8 @@
 // Agrega noticias de fuentes oficiales (gob.mx, NASA, NOAA/NHC). Sin dependencias: usa fetch de Node 18+.
 // Solo consulta direcciones fijas de esta lista; nunca una URL recibida del cliente.
 
+import { findStates, findBasins, findBasinsStrict, regionsOf } from './geo.js';
+
 const UA = 'KairosNewsBot/1.0 (+https://github.com/gabodeicaza/Kairos)';
 const TTL_MS = 10 * 60 * 1000;
 const TIMEOUT_MS = 12_000;
@@ -10,11 +12,14 @@ const ALLOWED_HOSTS = /(^|\.)(gob\.mx|nasa\.gov|noaa\.gov|gdacs\.org)$/i;
 const MX_TOPICS = /hurac[aá]n|cicl[oó]n|tormenta|lluvia|inundaci|calor|sequ[ií]a|\bagua\b|sismo|protecci[oó]n civil|cnpc|cenapred|alerta|emergencia|autocuidado|temporada|oleaje|incendio|frente fr[ií]o|desastre|damnificad/i;
 const EN_TOPICS = /hurricane|tropical|cyclone|storm|flood|rainfall|heat|drought|water|weather|disaster|earthquake|wildfire/i;
 
+const NAMED = { aacute: 'á', eacute: 'é', iacute: 'í', oacute: 'ó', uacute: 'ú', ntilde: 'ñ', uuml: 'ü', Aacute: 'Á', Eacute: 'É', Iacute: 'Í',
+  Oacute: 'Ó', Uacute: 'Ú', Ntilde: 'Ñ', iexcl: '¡', iquest: '¿', ordm: 'º', ordf: 'ª' };
 const decode = (s) => s
   .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
   .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n))
   .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
   .replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+  .replace(/&([A-Za-z]+);/g, (m, n) => NAMED[n] ?? m)
   .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 const text = (s) => decode(decode(s).replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 
@@ -89,6 +94,7 @@ async function loadGdacs() {
       title: `${GDACS_TYPE[p.eventtype]}${name} · ${p.country || 'región'} · alerta ${GDACS_LEVEL[p.alertlevel] || p.alertlevel}`,
       link: p.url && p.url.report, date: isNaN(date) ? null : date.toISOString(),
       summary: String(p.htmldescription || p.description || '').slice(0, 220),
+      regions: regionsOf(lon, lat), // regiones piloto que contienen el evento
     }];
   });
 }
@@ -107,6 +113,9 @@ async function loadNhcActive() {
       link: (s.publicAdvisory && s.publicAdvisory.url) || 'https://www.nhc.noaa.gov/',
       date: isNaN(date) ? new Date().toISOString() : date.toISOString(),
       summary: 'Tormenta activa reportada por el Centro Nacional de Huracanes.',
+      // Los identificadores del NHC empiezan por la cuenca: al/AL = Atlántico, ep/EP y cp/CP = Pacífico.
+      basins: /^(ep|cp)/i.test(s.id || '') ? ['pacific'] : /^al/i.test(s.id || '') ? ['atlantic'] : [],
+      regions: Number.isFinite(lat) && Number.isFinite(lon) ? regionsOf(lon, lat) : [],
     }];
   });
 }
@@ -114,36 +123,60 @@ async function loadNhcActive() {
 const SOURCES = [
   { id: 'nhc-active', name: 'NOAA · Tormentas activas (NHC)', kind: 'noaa', lang: 'es', max: 5, base: 'https://www.nhc.noaa.gov', load: loadNhcActive, only: /./ },
   { id: 'gdacs', name: 'GDACS · ONU y Comisión Europea', kind: 'gdacs', lang: 'es', max: 8, base: 'https://www.gdacs.org', load: loadGdacs, only: /./ },
-  { id: 'cnpc', name: 'Protección Civil (CNPC)', kind: 'proteccion-civil', max: 8, topics: /cnpc|protecci[oó]n civil|cenapred|hurac[aá]n|cicl[oó]n|tormenta|lluvia|inundaci|sismo|calor|autocuidado|temporada|emergencia/i,
+  { id: 'cnpc', name: 'Protección Civil (CNPC)', kind: 'proteccion-civil', max: 16, body: true, topics: /cnpc|protecci[oó]n civil|cenapred|hurac[aá]n|cicl[oó]n|tormenta|lluvia|inundaci|sismo|calor|autocuidado|temporada|emergencia/i,
     // La CNPC publica sus comunicados dentro de la sección de la SSPC.
     load: gob('sspc', 3), only: /cnpc|protecci[oó]n civil|cenapred|hurac[aá]n|cicl[oó]n|tormenta|lluvia|inundaci|sismo|calor|autocuidado|temporada|oleaje/i },
-  { id: 'conagua', name: 'Conagua · Gobierno de México', kind: 'gobierno', max: 8, load: gob('conagua', 2), only: MX_TOPICS },
-  { id: 'segob', name: 'Segob · Gobierno de México', kind: 'gobierno', max: 5, load: gob('segob', 2),
+  { id: 'conagua', name: 'Conagua · Gobierno de México', kind: 'gobierno', max: 10, body: true, load: gob('conagua', 2), only: MX_TOPICS },
+  { id: 'segob', name: 'Segob · Gobierno de México', kind: 'gobierno', max: 6, body: true, load: gob('segob', 2),
     only: /protecci[oó]n civil|cnpc|cenapred|hurac[aá]n|cicl[oó]n|tormenta|lluvia|inundaci|sismo|desastre|damnificad/i },
   { id: 'nasa', name: 'NASA', kind: 'nasa', max: 5, base: 'https://www.nasa.gov', load: async () => parseRss(await get('https://www.nasa.gov/feed/')), only: EN_TOPICS },
   { id: 'nasa-eo', name: 'NASA · Earth Observatory', kind: 'nasa', max: 5, base: 'https://earthobservatory.nasa.gov',
     load: async () => parseRss(await get('https://earthobservatory.nasa.gov/feeds/natural-hazards.rss')), only: EN_TOPICS },
-  { id: 'nhc-ep', name: 'NOAA · Centro Nacional de Huracanes (Pacífico)', kind: 'noaa', max: 2, base: 'https://www.nhc.noaa.gov',
+  { id: 'nhc-ep', name: 'NOAA · Centro Nacional de Huracanes (Pacífico)', kind: 'noaa', max: 2, basins: ['pacific'], base: 'https://www.nhc.noaa.gov',
     load: async () => parseRss(await get('https://www.nhc.noaa.gov/index-ep.xml')), only: /./ },
-  { id: 'nhc-at', name: 'NOAA · Centro Nacional de Huracanes (Atlántico)', kind: 'noaa', max: 2, base: 'https://www.nhc.noaa.gov',
+  { id: 'nhc-at', name: 'NOAA · Centro Nacional de Huracanes (Atlántico)', kind: 'noaa', max: 2, basins: ['atlantic'], base: 'https://www.nhc.noaa.gov',
     load: async () => parseRss(await get('https://www.nhc.noaa.gov/index-at.xml')), only: /./ },
 ];
 
 let cache = { at: 0, data: null };
 const stale = new Map(); // última lista buena por fuente, por si una falla
 
+// Texto de una nota de gob.mx (solo el cuerpo del artículo), para saber qué estados menciona.
+// Las notas no cambian una vez publicadas: el resultado se recuerda (acotado) y no se vuelve a pedir.
+const bodyCache = new Map();
+async function articleText(link) {
+  if (bodyCache.has(link)) return bodyCache.get(link);
+  let body = '';
+  try {
+    const html = await get(link);
+    const i = html.indexOf('class="article-body"');
+    body = i >= 0 ? text(html.slice(i, i + 9000)) : '';
+  } catch { return ''; } // si falla, no se cachea: se reintenta luego y mientras tanto se etiqueta solo con el título
+  if (bodyCache.size >= 400) bodyCache.delete(bodyCache.keys().next().value);
+  bodyCache.set(link, body);
+  return body;
+}
+
 async function loadSource(src) {
   try {
     const raw = await src.load();
     const base = src.base || 'https://www.gob.mx';
-    const items = raw
+    const picked = raw
       .filter((i) => i.title && i.link && i.date && src.only.test(`${i.title} ${i.summary || ''}`))
       .map((i) => ({ ...i, link: safeLink(i.link, base) }))
       .filter((i) => i.link)
       .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, src.max)
-      .map((i) => ({ id: `${src.id}:${i.link}`, title: i.title, link: i.link, date: i.date, summary: i.summary || '', image: i.image || null,
-        source: src.name, kind: src.kind, lang: src.lang || (src.kind === 'nasa' || src.kind === 'noaa' ? 'en' : 'es') }));
+      .slice(0, src.max);
+    const items = await Promise.all(picked.map(async (i) => {
+      const body = src.body ? await articleText(i.link) : '';
+      const haystack = `${i.title} ${i.summary || ''} ${body}`;
+      return { id: `${src.id}:${i.link}`, title: i.title, link: i.link, date: i.date, summary: i.summary || '', image: i.image || null,
+        source: src.name, kind: src.kind, lang: src.lang || (src.kind === 'nasa' || src.kind === 'noaa' ? 'en' : 'es'),
+        // Etiquetas geográficas para filtrar por la zona del usuario.
+        states: findStates(haystack),
+        basins: [...new Set([...(src.basins || []), ...(i.basins || []), ...(src.kind === 'nasa' ? findBasinsStrict(haystack) : findBasins(haystack))])],
+        regions: i.regions || [] };
+    }));
     stale.set(src.id, items);
     return { items };
   } catch (e) {
@@ -159,7 +192,7 @@ export async function getNews() {
     .filter((i) => !/no tropical cyclones/i.test(i.title)) // aviso vacío del NHC: no aporta
     .sort((a, b) => b.date.localeCompare(a.date))
     .filter((i) => { const k = i.title.toLowerCase().replace(/\W+/g, ' ').trim(); return seen.has(k) ? false : (seen.add(k), true); })
-    .slice(0, 40);
+    .slice(0, 60);
   const data = { updated: new Date().toISOString(), items, errors: results.flatMap((r) => (r.error ? [r.error] : [])) };
   // No se cachea una respuesta totalmente vacía por error de red; se reintenta en la siguiente petición.
   if (items.length) cache = { at: Date.now(), data };
