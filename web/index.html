@@ -162,7 +162,7 @@ nav button.on{color:var(--accent)}
 
 <script>
 /* ===== Modelo (espejo de Models.kt) ===== */
-const HAZARDS = {HURRICANE:'Huracán / tormenta tropical', FLOOD:'Inundación', EXTREME_HEAT:'Calor extremo', WATER_SCARCITY:'Escasez hídrica'};
+const HAZARDS = {HURRICANE:'Huracán / tormenta tropical', FLOOD:'Inundación', EXTREME_HEAT:'Calor extremo', WATER_SCARCITY:'Escasez hídrica', SEISMIC:'Sismo'};
 const SEV = ['GREEN','YELLOW','ORANGE','RED'];
 const SEV_LABEL = {GREEN:'Verde',YELLOW:'Amarilla',ORANGE:'Naranja',RED:'Roja'};
 const SEV_ACCENT = {GREEN:'#12C27E',YELLOW:'#FFB800',ORANGE:'#FF7A00',RED:'#FF3B4A'};
@@ -179,7 +179,7 @@ const REGIONS = {
 const HOUR = 3600000, MIN = 60000;
 
 /* ===== Reglas (espejo de ChecklistEngine.kt) ===== */
-const ALL = Object.keys(HAZARDS), WATER=['HURRICANE','FLOOD'], STORM=['HURRICANE'], FLOODH=['FLOOD'], HEAT=['EXTREME_HEAT'], SCAR=['WATER_SCARCITY'];
+const ALL = Object.keys(HAZARDS), SEIS=['SEISMIC'], WATER=['HURRICANE','FLOOD'], STORM=['HURRICANE'], FLOODH=['FLOOD'], HEAT=['EXTREME_HEAT'], SCAR=['WATER_SCARCITY'];
 const NOT_SCAR = ALL.filter(h=>h!=='WATER_SCARCITY');
 const S='SAFETY',A='ASSETS',P='PETS',H='SHELTER';
 const prod=(n,price)=>({name:n,price});
@@ -229,12 +229,29 @@ const RULES=[
  R(WATER,'YELLOW',st('post-damage','Documenta daños con fotos y video','Útil para tu seguro y para solicitar apoyos antes de limpiar.',3,30,0,A),{post:true}),
  R(WATER,'YELLOW',st('post-elder','Revisa su salud y medicinas','Confirma que tengan sus medicinas y que no haya signos de deshidratación.',2,15,0),{post:true,when:p=>p.hasElderly}),
  R(WATER,'YELLOW',st('post-pets','Revisa a tu mascota','Agua limpia, alimento y atención veterinaria si hay heridas o decaimiento.',3,15,0,P),{post:true,when:p=>p.hasPets}),
+ // ---- Sismos: no hay aviso con horas de anticipación, así que casi todo es preparación; las reglas "post" se usan tras un sismo ----
+ R(SEIS,'YELLOW',st('sis-secure','Fija muebles altos y objetos pesados','Libreros, repisas, boiler y televisores a la pared; lo pesado, abajo. Aleja camas y sillones de ventanas.',3,45,0,A)),
+ R(SEIS,'YELLOW',st('sis-zones','Define zonas seguras y salidas en cada cuarto','Junto a muros estructurales o bajo mesas firmes, lejos de ventanas. Mantén libres puertas y pasillos.',2,20,0,S)),
+ R(SEIS,'YELLOW',st('sis-drill','Practica agacharte, cubrirte y sujetarte','Ensáyalo en familia: nada de correr ni usar elevadores durante el movimiento.',3,15,0,S)),
+ R(SEIS,'ORANGE',st('sis-utilities','Aprende a cortar gas y electricidad','Ubica la llave del gas y el interruptor general; tras un sismo conviene cerrarlos si hay daños o huele a gas.',2,10,0,S)),
+ R(SEIS,'ORANGE',st('sis-structure','Revisa grietas y el estado de tu vivienda','Grietas en columnas o muros de carga, o hundimientos, requieren la revisión de un perito o de Protección Civil.',2,30,0,A)),
+ R(SEIS,'ORANGE',st('sis-backpack','Deja una mochila de emergencia junto a la salida','Documentos, linterna, silbato, botiquín, agua y medicinas: debe poder tomarse en segundos.',2,25,0,S,KIT)),
+ R(SEIS,'RED',st('sis-evac','Sal con calma a un punto abierto','Lejos de edificios, cables y vidrios, y quédate ahí. Si estás dentro y no puedes salir, cúbrete junto a un muro firme.',1,5,0,S)),
+ R(SEIS,'RED',st('sis-aftershock','Prepárate para réplicas','Pueden ser fuertes: no regreses a espacios dañados y mantén calzado y linterna a la mano.',1,5,0,S)),
+ R(SEIS,'YELLOW',st('sis-kids','Enseña a niñas y niños qué hacer en un sismo','Con un juego corto: dónde cubrirse, a dónde salir y que no deben correr.',3,15,0,S),{when:p=>p.hasChildren}),
+ R(SEIS,'ORANGE',st('sis-elder','Planea la salida de quien se mueve lento','Zona segura cercana a su cuarto y quién le ayuda a salir; evita escaleras sin apoyo.',1,20,0,H),{when:p=>p.hasElderly}),
+ R(SEIS,'ORANGE',st('sis-pets','Deja correa y transportadora junto a la salida','Los animales se asustan y huyen: que su equipo esté a la mano.',3,10,0,P),{when:p=>p.hasPets}),
+ R(SEIS,'YELLOW',st('sis-post-safe','Avisa a tu familia que estás bien','Mensajes cortos; las llamadas saturan la red.',1,5,0),{post:true}),
+ R(SEIS,'YELLOW',st('sis-post-check','Revisa lesiones y ayuda a quien lo necesite','Atiende heridas leves y llama a emergencias solo si hay riesgo de vida; no muevas a personas con lesión grave.',1,10,0),{post:true}),
+ R(SEIS,'YELLOW',st('sis-post-gas','Revisa gas, luz y agua antes de usarlos','Si hueles gas: ventila, no enciendas nada ni uses interruptores y sal. Cierra la llave si puedes hacerlo con seguridad.',1,10,0),{post:true}),
+ R(SEIS,'YELLOW',st('sis-post-building','No regreses a un edificio dañado','Espera la revisión de Protección Civil o de un perito; las réplicas pueden terminar de derrumbarlo.',1,5,0),{post:true}),
+ R(SEIS,'ORANGE',st('sis-post-damage','Documenta daños con fotos y video','Útil para tu seguro y apoyos; no entres a zonas inseguras para fotografiar.',3,20,0,A),{post:true}),
 ];
 
 function generate(profile, alert, zoneHigh){
   const sev = zoneHigh ? Math.min(SEV.indexOf(alert.severity)+1,3) : SEV.indexOf(alert.severity);
   const hasImpact = alert.impact != null;
-  const phaseOf = r => !hasImpact ? 'ONGOING' : r.post ? 'POST_IMPACT' : r.step.hb>12 ? 'EARLY' : r.step.hb>2 ? 'MINUS_12' : 'MINUS_2';
+  const phaseOf = r => alert.hazard==='SEISMIC' ? (r.post?'POST_IMPACT':'ONGOING') : !hasImpact ? 'ONGOING' : r.post ? 'POST_IMPACT' : r.step.hb>12 ? 'EARLY' : r.step.hb>2 ? 'MINUS_12' : 'MINUS_2';
   const seen = new Set();
   return RULES.filter(r => r.hz.includes(alert.hazard) && sev>=r.sev && (!r.when||r.when(profile)) && (!r.post||hasImpact))
     .map(r=>({...r.step, phase:phaseOf(r)}))
@@ -293,6 +310,15 @@ async function refreshReal(){
 function newsAlerts(){
   const z=interest(), best={};
   for(const i of state.news.items){
+    if(i.kind==='usgs'){                                   // sismos M4.5+ del USGS cerca de tu ubicación
+      const m=+((i.title.match(/^Sismo M([\d.]+)/)||[])[1]), d=distTo(i), issued=Date.parse(i.date);
+      if(!m||d==null||isNaN(issued)||Date.now()-issued>72*HOUR||d>300||(m<5&&d>150)) continue;
+      const sev=m>=6.5?'RED':m>=5.5?'ORANGE':'YELLOW';
+      if(!best.SEISMIC||SEV.indexOf(sev)>SEV.indexOf(best.SEISMIC.severity)||(sev===best.SEISMIC.severity&&issued>best.SEISMIC.issued))
+        best.SEISMIC={id:'n'+(String(i.id).split('').reduce((h,c)=>(h*31+c.charCodeAt(0))>>>0,7)),hazard:'SEISMIC',severity:sev,issued,impact:issued,simulated:false,
+          headline:`${i.title} · a ${Math.round(d)} km de ti`,source:'USGS'};
+      continue;
+    }
     if(!(i.kind==='gdacs'||(i.kind==='noaa'&&String(i.id).startsWith('nhc-active:')))||!visible(i,z)) continue;
     const t=i.title, issued=Date.parse(i.date);
     const hazard=/^(Ciclón|Huracán|Tormenta|Depresión)/i.test(t)?'HURRICANE':/^Inundaci/i.test(t)?'FLOOD':null;
@@ -369,8 +395,8 @@ state.zoneStatus=null;              // null | 'locating' | 'denied' | 'unsupport
 state.loc=load('loc',null);            // {lat,lon} redondeados a ~1 km. Solo en este navegador y solo si vino del GPS; nunca se envía al servidor.
 state.radius=load('radius','region');   // 5 | 10 | 20 | 'region'
 const GRADE_COLOR={'Muy bajo':'#22B07D','Bajo':'#22B07D','Medio':'#E5A100','Alto':'#FF7A00','Muy alto':'#E8261C'};
-const HZ_ICON={FLOOD:'🌊',HURRICANE:'🌀',EXTREME_HEAT:'🌡️',WATER_SCARCITY:'💧'};
-const HZ_SHORT={FLOOD:'Inundación',HURRICANE:'Ciclones',EXTREME_HEAT:'Calor',WATER_SCARCITY:'Sequía'};
+const HZ_ICON={FLOOD:'🌊',HURRICANE:'🌀',EXTREME_HEAT:'🌡️',WATER_SCARCITY:'💧',SEISMIC:'🏚️'};
+const HZ_SHORT={FLOOD:'Inundación',HURRICANE:'Ciclones',EXTREME_HEAT:'Calor',WATER_SCARCITY:'Sequía',SEISMIC:'Sismos'};
 const REGION_REF={'sw-guerrero':[16.86,-99.88],'ne-tamaulipas-nl':[25.67,-100.31]};
 /* El lugar que usa toda la app: tu ubicación si la tienes; si no, la región piloto elegida. */
 const placeName=()=>state.zone&&state.zone.municipio?`${state.zone.municipio}${state.zone.estado?', '+state.zone.estado:''}`:REGIONS[state.region].name;
@@ -712,7 +738,7 @@ function home(){
 function plan(){
   const items=activeAlerts(), zp=zonePlan(), plans=[...items,...(zp?[zp]:[])];
   let h=header();
-  if(!plans.length) return h+`<div class="card muted">Sin alertas activas ni plan de zona. ${state.zone?'El peligro de tu municipio es muy bajo en las cuatro amenazas.':'Detecta tu zona en Inicio para ver tu plan de preparación, o pulsa + para simular una alerta.'}</div>`+(state.zone?'':`<button class="btn" onclick="go('home');locate()">Detectar mi zona</button>`);
+  if(!plans.length) return h+`<div class="card muted">Sin alertas activas ni plan de zona. ${state.zone?'El peligro de tu municipio es muy bajo en las cinco amenazas.':'Detecta tu zona en Inicio para ver tu plan de preparación, o pulsa + para simular una alerta.'}</div>`+(state.zone?'':`<button class="btn" onclick="go('home');locate()">Detectar mi zona</button>`);
   const sel=plans.find(p=>p.alert.id===state.planSel)||plans[0], a=sel.alert, isZone=!!a.zonePlan;
   if(plans.length>1) h+=`<div class="chips">`+plans.map(p=>`<button class="${p===sel?'on':''}" onclick="go('plan',undefined,'${p.alert.id}')">${p.alert.zonePlan?'📍 Mi zona':(HZ_ICON[p.alert.hazard]||'')+' '+esc(HAZARDS[p.alert.hazard].split(' / ')[0])}</button>`).join('')+`</div>`;
   h+=`<div class="tabs"><button class="${!state.planFilter?'on':''}" onclick="go('plan',null)">Todos</button>`+
@@ -870,6 +896,11 @@ const ZONE_Q=[
  {id:'e-cool',hz:'EXTREME_HEAT',min:2,gap:'no',q:'¿Tu vivienda tiene ventilador o aire acondicionado?',step:{title:'Planea dónde refrescarte',detail:'Sin ventilación, identifica un lugar con clima cerca (biblioteca, centro comercial o comunitario) para las horas de mayor calor.',min:20,hb:0,cat:'SHELTER'}},
  {id:'e-health',hz:'EXTREME_HEAT',min:2,gap:'yes',q:'¿Alguien en casa tiene una enfermedad crónica o toma medicamentos que afectan la hidratación?',step:{title:'Consulta cómo cuidarte en días de calor',detail:'Pregunta a su médico cómo ajustar líquidos y medicamentos con calor extremo, y vigílalo más seguido.',min:15,hb:0,cat:'SAFETY'}},
  {id:'e-outdoor',hz:'EXTREME_HEAT',min:3,gap:'yes',q:'¿Alguien trabaja o estudia al aire libre entre las 11:00 y las 17:00?',step:{title:'Reorganiza las actividades al sol',detail:'Mueve lo que puedas a la mañana o la tarde, haz pausas a la sombra cada hora y lleva agua.',min:10,hb:0,cat:'SAFETY'}},
+ {id:'s-secure',hz:'SEISMIC',min:2,gap:'no',q:'¿Tus muebles altos, libreros y el boiler están fijos a la pared?',step:{title:'Fija muebles altos y el boiler',detail:'Escuadras o anclas a la pared; lo pesado, en la parte baja. Es lo que más lesiona en un sismo.',min:45,hb:0,cat:'ASSETS'}},
+ {id:'s-zones',hz:'SEISMIC',min:2,gap:'no',q:'¿Tu familia sabe cuáles son las zonas seguras y la ruta de salida?',step:{title:'Acuerden zonas seguras y ruta de salida',detail:'Recórranla juntos y definan un punto de reunión abierto, lejos de edificios y cables.',min:20,hb:0,cat:'SAFETY'}},
+ {id:'s-drill',hz:'SEISMIC',min:3,gap:'no',q:'¿Han hecho un simulacro de sismo en casa en el último año?',step:{title:'Haz un simulacro de sismo en casa',detail:'Cronométralo: agacharse, cubrirse, sujetarse y salir con calma. Repítelo cada año.',min:20,hb:0,cat:'SAFETY'}},
+ {id:'s-gas',hz:'SEISMIC',min:3,gap:'no',q:'¿Sabes cerrar la llave del gas y la electricidad de tu casa?',step:{title:'Aprende a cerrar gas y electricidad',detail:'Ubica la llave del gas y el interruptor general; tras un sismo evitan incendios y explosiones.',min:10,hb:0,cat:'SAFETY'}},
+ {id:'s-cracks',hz:'SEISMIC',min:3,gap:'yes',q:'¿Tu vivienda tiene grietas en muros o columnas, o la construyeron sin revisión estructural?',step:{title:'Pide una revisión estructural',detail:'Acude a Protección Civil de tu municipio o a un perito (Director Responsable de Obra); un daño previo empeora con un sismo.',min:30,hb:0,cat:'ASSETS'}},
  {id:'w-tank',hz:'WATER_SCARCITY',min:2,gap:'no',q:'¿Tienes tinaco, cisterna o recipientes para guardar agua?',step:{title:'Consigue dónde almacenar agua',detail:'Bidones o recipientes con tapa, limpios, para al menos 3 L por persona al día.',min:30,hb:0,cat:'ASSETS'}},
  {id:'w-reserve',hz:'WATER_SCARCITY',min:2,gap:'no',q:'¿Tu reserva de agua alcanza para 3 días?',step:{title:'Completa tu reserva de 3 días',detail:'3 L por persona al día, más lo de tus mascotas. Renueva el agua guardada cada mes.',min:30,hb:0,cat:'ASSETS'}},
  {id:'w-tandeo',hz:'WATER_SCARCITY',min:3,gap:'yes',q:'¿Tu colonia recibe agua por tandeo o con pipas?',step:{title:'Anota horarios de tandeo y de pipas',detail:'Pregunta al organismo operador de agua de tu municipio por los horarios y cómo solicitar una pipa; ten recipientes listos para esos días.',min:20,hb:0,cat:'SHELTER'}},
@@ -880,6 +911,8 @@ const ZONE_EXTRA=[
  {hz:'HURRICANE',min:3,step:{id:'x-hur-comm',title:'Acuerda cómo se comunican si cae la red',detail:'Un contacto fuera de la zona, un punto de reunión y quién recoge a niñas y niños.',pri:2,min:15,hb:0,cat:'SAFETY'}},
  {hz:'HURRICANE',min:4,step:{id:'x-hur-insure',title:'Revisa tu seguro y tus bienes',detail:'Fotografía tus bienes y confirma qué cubre tu póliza antes de la temporada.',pri:3,min:40,hb:0,cat:'ASSETS'}},
  {hz:'EXTREME_HEAT',min:3,step:{id:'x-heat-signs',title:'Aprende las señales del golpe de calor',detail:'Piel caliente y seca, confusión, mareo o vómito: sombra, agua y ayuda médica de inmediato.',pri:2,min:10,hb:0,cat:'SAFETY'}},
+ {hz:'SEISMIC',min:3,step:{id:'x-sis-alert',title:'Activa la alerta sísmica de tu teléfono',detail:'Revisa en los ajustes de tu celular o en la app oficial de tu ciudad si hay alerta de sismos disponible y actívala; da segundos valiosos para ponerte a salvo.',pri:2,min:10,hb:0,cat:'SAFETY'}},
+ {hz:'SEISMIC',min:4,step:{id:'x-sis-insure',title:'Revisa si tu seguro cubre sismo',detail:'Muchas pólizas lo excluyen o lo cobran aparte; confírmalo y fotografía tus bienes.',pri:3,min:30,hb:0,cat:'ASSETS'}},
  {hz:'WATER_SCARCITY',min:4,step:{id:'x-ws-7d',title:'Amplía tu reserva a 7 días',detail:'En zonas de sequía severa conviene una semana de agua para beber y cocinar.',pri:2,min:40,hb:0,cat:'ASSETS'}},
  {hz:null,min:3,step:{id:'x-alerts',title:'Sigue los avisos oficiales de tu zona',detail:'Protección Civil de tu estado y municipio, Conagua y el CENAPRED. Evita compartir rumores.',pri:3,min:10,hb:0,cat:'SAFETY'}},
 ];
@@ -891,6 +924,8 @@ const SEGUROS=[
   checks:[{q:'h-windows',t:'Ventanas con protección'},{q:'h-shelter',t:'Conoces tu refugio temporal'},{q:'h-roof',t:'Techo resistente (no de lámina ligera)'},{q:'h-radio',t:'Radio para recibir avisos'},{kit:'flashlight',t:'Linterna con pilas'}]},
  {id:'calor',hz:'EXTREME_HEAT',icon:'🌡️',name:'Calor Extremo (paramétrico)',base:39,cover:'Pago directo de $1,500, sin trámite de daños, si hay 3 días seguidos con sensación térmica ≥ 40 °C en tu zona.',trigger:'Lo activa el pronóstico/medición, no una inspección.',
   checks:[{q:'e-cool',t:'Ventilador, clima o lugar fresco planeado'},{kit:'water',t:'Agua para 3 días'},{p:'contacts',t:'Un contacto de emergencia registrado'}]},
+ {id:'sismo',hz:'SEISMIC',icon:'🏚️',name:'Sismo Hogar (paramétrico)',base:69,cover:'Pago directo de $5,000 para reparaciones menores y reposición de lo esencial tras un sismo fuerte cerca de ti.',trigger:'Sismo de magnitud ≥ 6.0 con epicentro a menos de 100 km (según el USGS).',
+  checks:[{q:'s-secure',t:'Muebles y boiler fijos'},{q:'s-zones',t:'Zonas seguras y ruta de salida'},{q:'s-gas',t:'Sabes cerrar gas y luz'},{q:'s-cracks',t:'Vivienda sin grietas visibles'},{kit:'flashlight',t:'Linterna con pilas'}]},
  {id:'agua',hz:'WATER_SCARCITY',icon:'💧',name:'Agua Segura',base:29,cover:'Hasta $800 al mes para pipas o agua embotellada cuando tu colonia sufre desabasto prolongado.',trigger:'Desabasto de más de 5 días reportado por el organismo de agua.',
   checks:[{q:'w-tank',t:'Tinaco, cisterna o recipientes'},{q:'w-reserve',t:'Reserva para 3 días'},{kit:'water',t:'Agua de emergencia en tu kit'}]},
  {id:'evac',hz:null,icon:'🧳',name:'Evacuación y Gastos de Emergencia',base:49,cover:'Hasta $4,000 para hospedaje, traslado y comida si tienes que salir de casa por una alerta oficial.',trigger:'Evacuación ordenada por Protección Civil.',
@@ -1001,9 +1036,9 @@ function segurosSection(){
   }).join('');
 }
 function profileZoneQuestions(){
-  if(!state.zone) return `<div class="card"><b>Preguntas según el riesgo de tu zona</b><p class="muted small">Detecta tu zona y te preguntaremos solo lo que importa según el peligro de tu municipio (inundación, ciclones, calor o sequía).</p><button class="btn" onclick="go('home');locate()">Detectar mi zona</button></div>`;
+  if(!state.zone) return `<div class="card"><b>Preguntas según el riesgo de tu zona</b><p class="muted small">Detecta tu zona y te preguntaremos solo lo que importa según el peligro de tu municipio (inundación, ciclones, calor, sequía o sismos).</p><button class="btn" onclick="go('home');locate()">Detectar mi zona</button></div>`;
   const qs=zoneQuestions();
-  if(!qs.length) return `<div class="card"><b>Preguntas según el riesgo de tu zona</b><p class="muted small">El peligro en ${esc(state.zone.municipio)} es bajo en las cuatro amenazas: no necesitamos más datos.</p></div>`;
+  if(!qs.length) return `<div class="card"><b>Preguntas según el riesgo de tu zona</b><p class="muted small">El peligro en ${esc(state.zone.municipio)} es bajo en las cinco amenazas: no necesitamos más datos.</p></div>`;
   const n=qs.filter(q=>state.profile.answers[q.id]).length;
   return `<div class="card"><div class="row"><b style="flex:1">Según el riesgo de ${esc(state.zone.municipio)}</b><span style="font-weight:700;color:var(--accent)">${n}/${qs.length}</span></div>
     <div class="muted small" style="margin:4px 0 6px">Entre más alto el peligro de tu zona, más preguntas. Tus respuestas arman tu plan (pestaña Plan).</div>${qs.map(questionRow).join('')}</div>`;
@@ -1017,7 +1052,7 @@ function profile(){
   ${protectionPanel()}
   ${profileZoneQuestions()}
   <div class="card"><div class="row"><b style="flex:1;font-size:18px">🛟 Microseguros</b><button class="btn ghost" onclick="toggleSeguros()">${state.segOpen?'Ocultar':'Ver opciones'}</button></div>
-    ${state.segOpen?segurosSection():`<div class="muted small" style="margin-top:4px">5 opciones de bajo costo cuya prima baja según cómo previenes. Se calculan con lo que respondes en esta pantalla.</div>`}</div>
+    ${state.segOpen?segurosSection():`<div class="muted small" style="margin-top:4px">6 opciones de bajo costo cuya prima baja según cómo previenes. Se calculan con lo que respondes en esta pantalla.</div>`}</div>
   <div class="card"><b>Tu hogar</b><div class="muted small" style="margin-bottom:8px">Con esto el plan te pide justo lo que necesitas (por ejemplo, rutas lentas si hay personas mayores).</div>
     <div class="grid2">${num('adults','Personas adultas',20)}${num('children','Niñas y niños',20)}${num('elderly','Personas adultas mayores',20)}${num('pets','Mascotas',30)}</div>
     ${sw('mobility','Alguien tiene movilidad reducida')}</div>
@@ -1052,7 +1087,7 @@ function setZone(v){ state.zoneHigh=v; save('zoneHigh',v); }
 function startSim(){
   const hours=Math.max(0,Math.min(72,+document.getElementById('sd').value||0)), now=Date.now();
   state.sim={hazard:document.getElementById('sh').value,severity:document.getElementById('ss').value,hours,issued:now,
-    impact:['EXTREME_HEAT','WATER_SCARCITY'].includes(document.getElementById('sh').value)?null:now+hours*HOUR};
+    impact:['EXTREME_HEAT','WATER_SCARCITY'].includes(document.getElementById('sh').value)?null:document.getElementById('sh').value==='SEISMIC'?now:now+hours*HOUR};
   save('sim',state.sim); state.now=now; state.tab='home'; render();
 }
 function stopSim(){ state.sim=null; save('sim',null); render(); }
@@ -1062,6 +1097,7 @@ function resetAll(){ ['done','sim','profile','zoneHigh','region','zone','loc','r
 setInterval(()=>{ state.now=Date.now(); if(state.tab!=='settings'&&state.tab!=='profile') render(); },60000);
 render(); refreshReal(); refreshNews(); refreshForecast(); loadAuthCfg();
 // Si el usuario ya dio permiso de ubicación antes, la zona se actualiza sola (nunca se vuelve a pedir permiso aquí).
+if(state.zone&&state.zone.hazards&&!('SEISMIC' in state.zone.hazards)&&state.loc) fetchZone(state.loc.lat,state.loc.lon,state.zone.mode);   // zona guardada sin la capa de sismos
 try{ if(navigator.permissions&&navigator.geolocation) navigator.permissions.query({name:'geolocation'}).then(p=>{ if(p.state==='granted'&&!(state.zone&&state.zone.mode==='demo')) locate(); }).catch(()=>{}); }catch(e){}
 </script>
 </body>

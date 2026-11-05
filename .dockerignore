@@ -8,3 +8,4 @@ build
 *.md
 secrets.properties
 local.properties
+.env

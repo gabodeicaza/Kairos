@@ -1,16 +1,19 @@
 // Peligro por municipio según el Atlas Nacional de Riesgos (CENAPRED, servicio ArcGIS público).
-// Recibe un punto (lat/lon), lo cruza con 4 capas y devuelve el grado de peligro de su municipio.
+// Recibe un punto (lat/lon), lo cruza con 5 capas y devuelve el grado de peligro de su municipio.
 // No guarda ni registra coordenadas: se usan solo para la consulta.
 
-const BASE = 'http://servicios1.cenapred.unam.mx:6080/arcgis/rest/services/ANR/Fenomenos_Hidrometeorologicos/MapServer';
+const ROOT = 'http://servicios1.cenapred.unam.mx:6080/arcgis/rest/services/ANR';
+const HIDRO = `${ROOT}/Fenomenos_Hidrometeorologicos/MapServer`;
+const GEO = `${ROOT}/Fenomenos_Geologicos/MapServer`;
 const TIMEOUT_MS = 15_000;
 
-// Una capa por amenaza de Kairos. "field" es el campo con el grado de peligro.
+// Una capa por amenaza de Kairos. "field" es el campo con el grado de peligro; "base" es el servicio (por defecto, hidrometeorológico).
 const LAYERS = {
   FLOOD:          { layer: 59, field: 'PELIGRO_IN',  name: ['NOM_MUN', 'MUNICIPIO'], state: ['IVI__ESTAD'] },   // Índice de peligro por inundación (CENAPRED, 2016)
   HURRICANE:      { layer: 76, field: 'GPCT',        name: ['MunIslas'],             state: ['NomEstado'] },    // Grado de peligro por ciclones tropicales (1949-2020)
   EXTREME_HEAT:   { layer: 69, field: 'F17_GP_OC_1', name: ['NOM_MUN'],              state: ['NOM_ENT'] },      // Peligro por ondas cálidas (2019)
   WATER_SCARCITY: { layer: 7,  field: 'Amenaza',     name: ['NOM_MUN'],              state: [] },               // Grado de peligro por sequía (CONAGUA, 2020)
+  SEISMIC:        { base: GEO, layer: 524, field: 'ZON2015', name: [],                  state: [] },               // Regionalización sísmica de la CFE (2015): Baja, Media, Alta, Muy alta
 };
 
 // Cobertura del Atlas: territorio mexicano.
@@ -33,7 +36,7 @@ export function normalizeGrade(raw) {
 const titleCase = (s) => String(s).toLowerCase().replace(/(^|\s)(\p{L})/gu, (_, a, b) => a + b.toUpperCase()).replace(/\b(De|Del|La|Los|Las|Y)\b/g, (m) => m.toLowerCase());
 
 async function queryLayer(def, lon, lat) {
-  const url = `${BASE}/${def.layer}/query?` + new URLSearchParams({
+  const url = `${def.base || HIDRO}/${def.layer}/query?` + new URLSearchParams({
     geometry: `${lon},${lat}`, geometryType: 'esriGeometryPoint', inSR: '4326', spatialRel: 'esriSpatialRelIntersects',
     outFields: '*', returnGeometry: 'false', f: 'json',
   });
