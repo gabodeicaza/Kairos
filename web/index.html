@@ -173,8 +173,8 @@ const CAT_COLOR = {SAFETY:'#1F8BFF', ASSETS:'#8B5CF6', PETS:'#FF7A1A', SHELTER:'
 const PHASES = ['PREP','ONGOING','EARLY','MINUS_12','MINUS_2','POST_IMPACT'];
 const PHASE_LABEL = {PREP:'Preparación de tu zona',ONGOING:'Durante la alerta',EARLY:'Preparación',MINUS_12:'Fase -12 horas',MINUS_2:'Fase -2 horas',POST_IMPACT:'Post-impacto'};
 const REGIONS = {
-  'sw-guerrero': {name:'Suroeste (Acapulco, Guerrero)', box:[-106,14,-96,20]},
-  'ne-tamaulipas-nl': {name:'Noreste (Tamaulipas y Monterrey)', box:[-101.5,22,-93,28]},
+  'sw-guerrero': {name:'Acapulco, Guerrero', short:'Acapulco', box:[-106,14,-96,20]},
+  'ne-tamaulipas-nl': {name:'Monterrey, Nuevo León', short:'Nuevo León', box:[-101.5,22,-93,28]},
 };
 const HOUR = 3600000, MIN = 60000;
 
@@ -251,7 +251,7 @@ const isUnlocked=(s,alert,now)=>now>=unlockAt(s.phase,alert.impact);
 const load=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}};
 const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 const state={
-  tab:'home', planFilter:null, planSel:null, now:Date.now(), loading:true, real:[],
+  segOpen:false, tab:'home', planFilter:null, planSel:null, now:Date.now(), loading:true, real:[],
   region:load('region','sw-guerrero'),
   profile:load('profile',{groundFloor:false,hasChildren:false,hasElderly:false,hasPets:false}),
   zoneHigh:load('zoneHigh',false),
@@ -289,8 +289,23 @@ async function refreshReal(){
 }
 
 /* ===== Derivados ===== */
+/* Ciclones e inundaciones que GDACS (ONU/UE) y el NHC reportan cerca de tu ubicación, convertidos en alertas con su plan */
+function newsAlerts(){
+  const z=interest(), best={};
+  for(const i of state.news.items){
+    if(!(i.kind==='gdacs'||(i.kind==='noaa'&&String(i.id).startsWith('nhc-active:')))||!visible(i,z)) continue;
+    const t=i.title, issued=Date.parse(i.date);
+    const hazard=/^(Ciclón|Huracán|Tormenta|Depresión)/i.test(t)?'HURRICANE':/^Inundaci/i.test(t)?'FLOOD':null;
+    if(!hazard||isNaN(issued)||Date.now()-issued>72*HOUR) continue;
+    const sev=i.kind==='gdacs'?(/roja/.test(t)?'RED':/naranja/.test(t)?'ORANGE':'YELLOW'):stormSeverity(+((t.match(/vientos de (\d+)/)||[])[1])||null);
+    const d=distTo(i), a={id:'n'+(String(i.id).split('').reduce((h,c)=>(h*31+c.charCodeAt(0))>>>0,7)),hazard,severity:sev,issued,impact:null,simulated:false,
+      headline:t+(d!=null?` · a ${Math.round(d)} km de ti`:''),source:i.kind==='gdacs'?'GDACS (ONU/UE)':'NHC · NOAA'};
+    if(!best[hazard]||SEV.indexOf(sev)>SEV.indexOf(best[hazard].severity)) best[hazard]=a;   // una alerta por amenaza: la más grave
+  }
+  return Object.values(best).filter(a=>!state.real.some(r=>r.hazard===a.hazard));
+}
 function activeAlerts(){
-  const list=[...state.real];
+  const list=[...state.real,...newsAlerts()];
   if(state.sim) list.unshift({id:'sim',hazard:state.sim.hazard,severity:state.sim.severity,issued:state.sim.issued,impact:state.sim.impact,
     headline:'Alerta simulada para demostración',simulated:true,source:'Simulador'});
   return list.sort((a,b)=>SEV.indexOf(b.severity)-SEV.indexOf(a.severity)).map(a=>({alert:a,steps:generate(state.profile,a,zoneHighFor(a.hazard))}));
@@ -338,17 +353,18 @@ const clamp01=x=>Math.min(1,Math.max(0,x));
 function hours(ms){ if(ms<=0) return ['0','h']; const h=ms/HOUR; return h<1?[String(Math.round(ms/MIN)),'min']:[h>=10?String(Math.round(h)):h.toFixed(1),'h']; }
 
 function header(){
-  const gps=!!(state.zone&&state.zone.mode==='gps'), here=state.zone&&state.zone.municipio;
+  const gps=!!(state.zone&&state.zone.mode==='gps'), here=gps&&state.zone.municipio;
   const sel=gps?'loc':state.region;
   return `<div class="top"><div class="sel"><select onchange="setRegion(this.value)">
-    <option value="loc" ${sel==='loc'?'selected':''}>📍 ${esc(here?state.zone.municipio:'Mi ubicación')}</option>
-    ${Object.entries(REGIONS).map(([k,v])=>`<option value="${k}" ${k===sel?'selected':''}>${esc(v.name.split(' (')[0])}</option>`).join('')}</select></div>
+    <option value="loc" ${sel==='loc'?'selected':''}>📍 ${esc(here?state.zone.municipio+' (mi ubicación)':'Mi ubicación')}</option>
+    ${Object.entries(REGIONS).map(([k,v])=>`<option value="${k}" ${k===sel?'selected':''}>${esc(v.short)} · ejemplo</option>`).join('')}</select></div>
     <button class="fab" onclick="go('settings')" aria-label="Simular alerta">+</button></div>`;
 }
 const scene=(label,color,fn)=>`<button class="scene" style="background:${color}" onclick="${fn}">${label}</button>`;
 
 /* ===== Zona de peligro automática (/api/hazards -> Atlas Nacional de Riesgos, CENAPRED) ===== */
-state.zone=load('zone',null);       // {municipio,estado,hazards:{HAZARD:{grade,high}},mode}. Solo se guarda el municipio, nunca coordenadas.
+state.zone=load('zone',null);
+if(state.zone&&state.zone.mode==='region'){ state.zone.mode='demo'; const c0=REGION_REF[load('region','sw-guerrero')]; if(c0) state.loc={lat:c0[0],lon:c0[1]}; }   // versión anterior       // {municipio,estado,hazards:{HAZARD:{grade,high}},mode}. Solo se guarda el municipio, nunca coordenadas.
 state.zoneStatus=null;              // null | 'locating' | 'denied' | 'unsupported' | 'error' | 'outside'
 state.loc=load('loc',null);            // {lat,lon} redondeados a ~1 km. Solo en este navegador y solo si vino del GPS; nunca se envía al servidor.
 state.radius=load('radius','region');   // 5 | 10 | 20 | 'region'
@@ -374,7 +390,8 @@ function locate(){
     e=>{ state.zoneStatus=e.code===1?'denied':'error'; render(); },
     {enableHighAccuracy:false,timeout:15000,maximumAge:600000});
 }
-function useRegionRef(){ const c=REGION_REF[state.region]; state.loc=null; save('loc',null); state.zoneStatus='locating'; render(); fetchZone(c[0],c[1],'region'); }
+/* Ubicación de ejemplo (Acapulco o Nuevo León): se comporta igual que una real, para mostrar la app en otros lugares. */
+function useRegionRef(){ const c=REGION_REF[state.region]; state.zoneStatus='locating'; render(); fetchZone(c[0],c[1],'demo'); }
 async function fetchZone(lat,lon,mode){
   try{
     // POST: las coordenadas van en el cuerpo y no en la URL.
@@ -383,7 +400,7 @@ async function fetchZone(lat,lon,mode){
     if(!r.ok) throw new Error('HTTP '+r.status);
     const d=await r.json();
     state.zone={municipio:d.municipio,estado:d.estado,hazards:d.hazards,mode,partial:!!d.partial}; save('zone',state.zone); state.zoneStatus=null;
-    state.loc=mode==='gps'?{lat:Math.round(lat*100)/100,lon:Math.round(lon*100)/100}:null; save('loc',state.loc);
+    state.loc=(mode==='gps'||mode==='demo')?{lat:Math.round(lat*100)/100,lon:Math.round(lon*100)/100}:null; save('loc',state.loc);
   }catch(e){ state.zoneStatus='error'; }
   render();
   // Todo lo que depende del lugar se vuelve a pedir con la ubicación: noticias (el servidor marca las que nombran tu municipio), alertas y pronóstico.
@@ -451,7 +468,7 @@ function zoneCard(){
       <div style="font-size:20px;font-weight:700;margin:2px 0 10px">📍 ${esc(z.municipio)}${z.estado?', '+esc(z.estado):''}</div>
       <div class="fctags" style="margin-top:0">${chips}</div>
       <div class="small" style="margin-top:12px;color:${anyHigh?'#E8261C':'#5B6575'}">${anyHigh?'Tu municipio tiene peligro alto en al menos una amenaza: tu plan se vuelve más estricto automáticamente para esa amenaza.':'Tu plan usa el nivel normal de severidad.'}</div>
-      <div class="muted small" style="margin-top:8px">${z.mode==='region'?'Referencia aproximada de la región, no es tu ubicación. ':''}Fuente: Atlas Nacional de Riesgos (CENAPRED), a nivel municipal.${z.partial?' Algunas capas no respondieron.':''}</div>
+      <div class="muted small" style="margin-top:8px">${z.mode==='demo'?'Ubicación de ejemplo para la demostración, no es tu ubicación. ':''}Fuente: Atlas Nacional de Riesgos (CENAPRED), a nivel municipal.${z.partial?' Algunas capas no respondieron.':''}</div>
       <div class="row" style="margin-top:6px"><button class="btn ghost" style="padding-left:0" onclick="locate()">Volver a detectar</button><button class="btn ghost" onclick="clearZone()">Quitar</button></div></div>`;
   }
   const msg={denied:'No diste permiso de ubicación. Puedes activarlo en el navegador o usar la referencia de tu región.',
@@ -461,7 +478,7 @@ function zoneCard(){
   return `<div class="card"><b>📍 Detecta tu zona de peligro</b>
     <div class="muted small" style="margin:6px 0 12px">Usamos tu ubicación para consultar los mapas de peligro del CENAPRED, ajustar tu plan y medir la distancia a eventos cercanos. Se queda solo en este navegador, redondeada a ~1 km: nunca se guarda en el servidor.</div>
     ${msg?`<div class="small" style="color:#E8261C;margin-bottom:10px">${msg}</div>`:''}
-    <div class="row" style="flex-wrap:wrap"><button class="btn" onclick="locate()">Usar mi ubicación</button><button class="btn ghost" onclick="useRegionRef()">Usar referencia de la región</button></div></div>`;
+    <div class="row" style="flex-wrap:wrap"><button class="btn" onclick="locate()">Usar mi ubicación</button><button class="btn ghost" onclick="useRegionRef()">Ver un lugar de ejemplo</button></div></div>`;
 }
 
 /* ===== Pronóstico de calor y lluvia (/api/forecast, datos de Open-Meteo) ===== */
@@ -536,7 +553,7 @@ state.news={items:[],loading:true,error:null,filter:'all',all:false,scope:'zone'
 async function refreshNews(){
   state.news.loading=true; state.news.error=null; render();
   try{
-    const z=state.zone&&state.zone.mode==='gps'?state.zone:null;   // solo nombre de municipio y estado, en el cuerpo del POST
+    const z=state.zone&&(state.zone.mode==='gps'||state.zone.mode==='demo')?state.zone:null;   // solo nombre de municipio y estado, en el cuerpo del POST
     const r=await fetch('/api/news',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({muni:z?z.municipio:'',estado:z?z.estado||'':''})}); if(!r.ok) throw new Error('HTTP '+r.status);
     const d=await r.json(); state.news.items=Array.isArray(d.items)?d.items:[];
   }catch(e){ state.news.error='No se pudieron cargar las noticias.'; }
@@ -563,7 +580,7 @@ function sameState(a,b){
   return x===y||x.startsWith(y+' de ')||y.startsWith(x+' de ')||(x==='mexico'&&y==='estado de mexico')||(y==='mexico'&&x==='estado de mexico');
 }
 function interest(){
-  const z=state.zone, gps=!!(z&&z.mode==='gps'&&state.loc);
+  const z=state.zone, gps=!!(z&&state.loc);
   const states=z&&z.estado?[z.estado]:(REGION_STATES[state.region]||[]);
   const basins=Object.keys(BASIN_STATES).filter(b=>states.some(s=>BASIN_STATES[b].some(t=>sameState(s,t))));
   // Una zona tierra adentro (p. ej. CDMX) no tiene costa: los avisos de cuenca no son suyos. Solo sin zona se muestran ambas cuencas.
@@ -734,7 +751,7 @@ function render(){
 
 function alerts(){
   const items=activeAlerts();
-  let h=`<h1>Alertas</h1><div class="muted" style="margin-bottom:14px">${esc(placeName())}</div>`;
+  let h=`<h1>Alertas</h1><div class="muted" style="margin-bottom:4px">📍 ${esc(placeName())}</div><div class="muted small" style="margin-bottom:14px">Eventos a ~275 km de tu ubicación (NASA EONET) y avisos de GDACS y NHC que te alcanzan. Cambian al cambiar de lugar.</div>`;
   if(!items.length) return h+`<div class="card muted">${state.loading?'Buscando…':'Sin alertas activas.'}</div>`;
   return h+items.map(({alert:a})=>`<div class="card"><div class="row"><i style="width:14px;height:14px;border-radius:50%;background:${SEV_ACCENT[a.severity]}"></i>
     <b style="flex:1">${HAZARDS[a.hazard]}</b><span style="color:${SEV_ACCENT[a.severity]};font-weight:700">${SEV_LABEL[a.severity]}</span></div>
@@ -746,8 +763,8 @@ function settings(){
   const s=state.sim||{hazard:'HURRICANE',severity:'ORANGE',hours:30};
   const opts=(o,sel)=>Object.entries(o).map(([k,v])=>`<option value="${k}" ${k===sel?'selected':''}>${v}</option>`).join('');
   return `<h1>Ajustes</h1>
-  <div class="card"><b>Región piloto</b><div style="margin-top:10px"><select id="reg" onchange="setRegion(this.value)">${opts(Object.fromEntries(Object.entries(REGIONS).map(([k,v])=>[k,v.name])),state.region)}</select></div>
-    <button class="btn ghost" style="padding-left:0" onclick="refreshReal()">Actualizar alertas de NASA</button></div>
+  <div class="card"><b>Ubicación de ejemplo</b><div class="muted small" style="margin-top:4px">Elige Acapulco o Nuevo León para ver cómo cambian zona de peligro, noticias, alertas, pronóstico y plan.</div><div style="margin-top:10px"><select id="reg" onchange="setRegion(this.value)">${opts(Object.fromEntries(Object.entries(REGIONS).map(([k,v])=>[k,v.name])),state.region)}</select></div>
+    <button class="btn ghost" style="padding-left:0" onclick="refreshReal();refreshNews()">Actualizar alertas</button></div>
   <div class="card"><b>Tu hogar y tu cuenta</b><div class="muted small" style="margin:6px 0 10px">Las preguntas sobre tu hogar, vivienda, contactos y kit ahora están en la pestaña Perfil.${state.zone?` Tu zona se detecta con los mapas del CENAPRED (${esc(state.zone.municipio)}).`:''}</div>
     <button class="btn" onclick="go('profile')">Ir a Perfil</button>
     ${state.zone?'':`<label class="opt" style="margin-top:8px">Zona de riesgo alto (manual)<input class="sw" type="checkbox" ${state.zoneHigh?'checked':''} onchange="setZone(this.checked)"></label>
@@ -866,9 +883,22 @@ const ZONE_EXTRA=[
  {hz:'WATER_SCARCITY',min:4,step:{id:'x-ws-7d',title:'Amplía tu reserva a 7 días',detail:'En zonas de sequía severa conviene una semana de agua para beber y cocinar.',pri:2,min:40,hb:0,cat:'ASSETS'}},
  {hz:null,min:3,step:{id:'x-alerts',title:'Sigue los avisos oficiales de tu zona',detail:'Protección Civil de tu estado y municipio, Conagua y el CENAPRED. Evita compartir rumores.',pri:3,min:10,hb:0,cat:'SAFETY'}},
 ];
+/* ===== Microseguros: la prima baja con lo que el usuario demuestra que ya hace para prevenir ===== */
+const SEGUROS=[
+ {id:'inund',hz:'FLOOD',icon:'🌊',name:'Hogar Seco',base:59,cover:'Hasta $15,000 por enseres básicos (colchón, estufa, refrigerador, ropa) dañados por una inundación.',trigger:'Inundación en tu colonia confirmada por Protección Civil.',
+  checks:[{q:'f-route',t:'Conoces tu ruta a zona alta'},{q:'f-docs',t:'Documentos protegidos del agua'},{q:'f-power',t:'Sabes cortar luz y gas'},{kit:'docs',t:'Copias de documentos en bolsa impermeable'}]},
+ {id:'ciclon',hz:'HURRICANE',icon:'🌀',name:'Viento y Ciclón',base:79,cover:'Hasta $25,000 por daños a techo, ventanas y puertas de una vivienda por vientos de ciclón.',trigger:'Ciclón con vientos ≥ 90 km/h declarado en tu municipio.',
+  checks:[{q:'h-windows',t:'Ventanas con protección'},{q:'h-shelter',t:'Conoces tu refugio temporal'},{q:'h-roof',t:'Techo resistente (no de lámina ligera)'},{q:'h-radio',t:'Radio para recibir avisos'},{kit:'flashlight',t:'Linterna con pilas'}]},
+ {id:'calor',hz:'EXTREME_HEAT',icon:'🌡️',name:'Calor Extremo (paramétrico)',base:39,cover:'Pago directo de $1,500, sin trámite de daños, si hay 3 días seguidos con sensación térmica ≥ 40 °C en tu zona.',trigger:'Lo activa el pronóstico/medición, no una inspección.',
+  checks:[{q:'e-cool',t:'Ventilador, clima o lugar fresco planeado'},{kit:'water',t:'Agua para 3 días'},{p:'contacts',t:'Un contacto de emergencia registrado'}]},
+ {id:'agua',hz:'WATER_SCARCITY',icon:'💧',name:'Agua Segura',base:29,cover:'Hasta $800 al mes para pipas o agua embotellada cuando tu colonia sufre desabasto prolongado.',trigger:'Desabasto de más de 5 días reportado por el organismo de agua.',
+  checks:[{q:'w-tank',t:'Tinaco, cisterna o recipientes'},{q:'w-reserve',t:'Reserva para 3 días'},{kit:'water',t:'Agua de emergencia en tu kit'}]},
+ {id:'evac',hz:null,icon:'🧳',name:'Evacuación y Gastos de Emergencia',base:49,cover:'Hasta $4,000 para hospedaje, traslado y comida si tienes que salir de casa por una alerta oficial.',trigger:'Evacuación ordenada por Protección Civil.',
+  checks:[{p:'contacts',t:'Contactos de emergencia registrados'},{p:'meeting',t:'Punto de reunión familiar definido'},{kit:'firstAid',t:'Botiquín de primeros auxilios'},{kit:'powerBank',t:'Batería externa'},{kit:'cash',t:'Efectivo en billetes pequeños'}]},
+];
 const defaultProfile=()=>({groundFloor:false,hasChildren:false,hasElderly:false,hasPets:false,
   adults:1,children:0,elderly:0,pets:0,mobility:false,housing:'casa',floor:'0',hasCar:false,meeting:'',
-  contacts:[{name:'',phone:''},{name:'',phone:''},{name:'',phone:''}],kit:{},answers:{}});
+  contacts:[{name:'',phone:''},{name:'',phone:''},{name:'',phone:''}],kit:{},answers:{},seguros:{}});
 const txt=(v,n)=>typeof v==='string'?v.replace(/[<>]/g,'').slice(0,n):'';
 const cnt=(v,max)=>Math.max(0,Math.min(max,Math.floor(Number(v))||0));
 function cleanProfile(p){
@@ -879,6 +909,7 @@ function cleanProfile(p){
   o.mobility=!!o.mobility; o.hasCar=!!o.hasCar;
   o.contacts=d.contacts.map((_,i)=>({name:txt(p.contacts&&p.contacts[i]&&p.contacts[i].name,60),phone:txt(p.contacts&&p.contacts[i]&&p.contacts[i].phone,20).replace(/[^\d+\s()-]/g,'')}));
   o.kit={}; HOME_KIT.forEach(([k])=>{ if(p.kit&&p.kit[k]) o.kit[k]=true; });
+  o.seguros={}; SEGUROS.forEach(sg=>{ if(p.seguros&&p.seguros[sg.id]) o.seguros[sg.id]=true; });
   o.answers={}; ZONE_Q.forEach(q=>{ const a=p.answers&&p.answers[q.id]; if(a==='yes'||a==='no') o.answers[q.id]=a; });
   return derive(o);
 }
@@ -892,6 +923,8 @@ function setField(k,v,rerender){
 }
 function setContact(i,f,v){ state.profile.contacts[i][f]=f==='phone'?txt(v,20).replace(/[^\d+\s()-]/g,''):txt(v,60); save('profile',state.profile); queueSync(); }
 function setAnswer(id,v){ const a=state.profile.answers; if(a[id]===v) delete a[id]; else a[id]=v; save('profile',state.profile); queueSync(); render(); }
+function setInterest(id){ const m=state.profile.seguros; if(m[id]) delete m[id]; else m[id]=true; save('profile',state.profile); queueSync(); render(); }
+function toggleSeguros(){ state.segOpen=!state.segOpen; render(); }
 function setKit(k,v){ if(v) state.profile.kit[k]=true; else delete state.profile.kit[k]; save('profile',state.profile); queueSync(); render(); }
 
 const shield=(ok,t)=>`<div class="row" style="gap:10px;align-items:flex-start;margin:8px 0"><span style="font-size:18px">${ok?'🔒':'⚠️'}</span><span class="small" style="flex:1">${t}</span></div>`;
@@ -930,6 +963,43 @@ function accountCard(){
     <div class="row" style="gap:8px;margin-top:10px"><button class="btn" ${AUTH.busy?'disabled':''} onclick="submitAuth()">${AUTH.busy?'Espera…':up?'Crear cuenta':'Entrar'}</button>
     <button class="btn ghost" onclick="setAuthMode('${up?'in':'up'}')">${up?'Ya tengo cuenta':'Crear cuenta'}</button></div></div>`;
 }
+/* Qué medidas de prevención aplica el usuario para este seguro: ok = ya lo hace, no = le falta, ? = falta responder */
+function seguroStatus(sg){
+  const pr=state.profile, hasContact=pr.contacts.some(c=>c.name&&c.phone);
+  const checks=sg.checks.flatMap(c=>{
+    if(c.q){
+      const q=ZONE_Q.find(x=>x.id===c.q), sc=gradeScore(q.hz);
+      if(!(state.zone&&sc!=null&&sc>=q.min)) return [];            // esa pregunta no aplica al riesgo de tu zona
+      const a=pr.answers[c.q];
+      return [{t:c.t,st:a==null?'?':(a!==q.gap||isDone('zone','q-'+c.q))?'ok':'no'}];   // lo hace, o ya completó el paso que le faltaba
+    }
+    if(c.kit) return [{t:c.t,st:pr.kit[c.kit]?'ok':'no'}];
+    return [{t:c.t,st:(c.p==='contacts'?hasContact:!!pr.meeting.trim())?'ok':'no'}];
+  });
+  const met=checks.filter(c=>c.st==='ok').length, frac=checks.length?met/checks.length:0;
+  const disc=frac>=.75?30:frac>=.5?20:frac>=.25?10:0;
+  const sc=sg.hz?gradeScore(sg.hz):(state.zone?zoneLevel():null);
+  return {checks,met,frac,disc,price:Math.round(sg.base*(1-disc/100)),rec:sc!=null&&sc>=2,sc};
+}
+function segurosSection(){
+  const list=SEGUROS.map(sg=>({sg,st:seguroStatus(sg)})).sort((a,b)=>b.st.rec-a.st.rec);
+  const alertHz=new Set(activeAlerts().map(x=>x.alert.hazard));
+  return `<div class="muted small" style="margin:6px 0 4px">Cuanto más haces para prevenir, menos pagas: la prima baja hasta 30 % según las medidas que nos cuentas (Perfil y preguntas de tu zona). Si no hay datos de tu zona, responde primero "Detectar mi zona".</div>
+    <div class="note">Prototipo: los montos y coberturas son <b>ilustrativos</b>. No hay aseguradora conectada ni se contrata nada; “Me interesa” solo guarda tu preferencia.</div>`+
+  list.map(({sg,st})=>{
+    const g=sg.hz&&state.zone&&state.zone.hazards&&state.zone.hazards[sg.hz]&&state.zone.hazards[sg.hz].grade;
+    const icon={ok:'✅',no:'⬜','?':'❔'};
+    return `<div style="border-top:1px solid var(--track);padding:14px 0">
+      <div class="row" style="align-items:flex-start"><div style="flex:1"><b>${sg.icon} ${sg.name}</b>
+        <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:4px">${st.rec?pill(sg.hz?'Recomendado · peligro '+g:'Recomendado para tu zona','#E8261C'):pill(state.zone?'Prioridad baja en tu zona':'Detecta tu zona','#8A90A0')}${st.disc?pill('−'+st.disc+' % por prevenir','#22B07D',true):''}</div></div>
+        <div style="text-align:right"><div style="font-size:24px;font-weight:700">$${st.price}<span class="muted small">/mes</span></div>${st.disc?`<div class="muted small" style="text-decoration:line-through">$${sg.base}</div>`:''}</div></div>
+      <div class="small" style="margin:8px 0 2px">${esc(sg.cover)}</div><div class="muted small">Se activa con: ${esc(sg.trigger)}</div>
+      ${st.checks.length?`<div class="bar"><i style="width:${Math.round(st.frac*100)}%"></i></div><div class="small">${st.checks.map(c=>`<div>${icon[c.st]} ${esc(c.t)}</div>`).join('')}</div>
+        ${st.checks.some(c=>c.st==='?')?`<div class="muted small" style="margin-top:4px">❔ Responde las preguntas de la tarjeta anterior para que cuenten.</div>`:''}`:''}
+      ${sg.hz&&alertHz.has(sg.hz)?`<div class="small" style="color:#E8261C;margin-top:6px">⚠️ Hay una alerta activa de esta amenaza: un seguro nuevo suele tener periodo de espera, por eso conviene contratarlo antes.</div>`:''}
+      <button class="btn ${state.profile.seguros[sg.id]?'':'ghost'}" style="margin-top:8px;${state.profile.seguros[sg.id]?'':'padding-left:0'}" onclick="setInterest('${sg.id}')">${state.profile.seguros[sg.id]?'✓ Me interesa':'Me interesa'}</button></div>`;
+  }).join('');
+}
 function profileZoneQuestions(){
   if(!state.zone) return `<div class="card"><b>Preguntas según el riesgo de tu zona</b><p class="muted small">Detecta tu zona y te preguntaremos solo lo que importa según el peligro de tu municipio (inundación, ciclones, calor o sequía).</p><button class="btn" onclick="go('home');locate()">Detectar mi zona</button></div>`;
   const qs=zoneQuestions();
@@ -946,6 +1016,8 @@ function profile(){
   ${accountCard()}
   ${protectionPanel()}
   ${profileZoneQuestions()}
+  <div class="card"><div class="row"><b style="flex:1;font-size:18px">🛟 Microseguros</b><button class="btn ghost" onclick="toggleSeguros()">${state.segOpen?'Ocultar':'Ver opciones'}</button></div>
+    ${state.segOpen?segurosSection():`<div class="muted small" style="margin-top:4px">5 opciones de bajo costo cuya prima baja según cómo previenes. Se calculan con lo que respondes en esta pantalla.</div>`}</div>
   <div class="card"><b>Tu hogar</b><div class="muted small" style="margin-bottom:8px">Con esto el plan te pide justo lo que necesitas (por ejemplo, rutas lentas si hay personas mayores).</div>
     <div class="grid2">${num('adults','Personas adultas',20)}${num('children','Niñas y niños',20)}${num('elderly','Personas adultas mayores',20)}${num('pets','Mascotas',30)}</div>
     ${sw('mobility','Alguien tiene movilidad reducida')}</div>
@@ -974,8 +1046,7 @@ function toggle(aid,sid){ const k=aid+':'+sid; if(state.done[k]) delete state.do
 function setRegion(r){
   if(r==='loc'){ locate(); return; }
   state.region=r; save('region',r);
-  if(state.zone&&state.zone.mode==='gps') useRegionRef();   // elegir una región pasa a usar su referencia, no tu ubicación
-  else{ refreshReal(); refreshForecast(); refreshNews(); }
+  useRegionRef();   // el lugar de ejemplo pasa a ser tu ubicación activa: zona de peligro, noticias, alertas y pronóstico cambian juntos
 }
 function setZone(v){ state.zoneHigh=v; save('zoneHigh',v); }
 function startSim(){
@@ -991,7 +1062,7 @@ function resetAll(){ ['done','sim','profile','zoneHigh','region','zone','loc','r
 setInterval(()=>{ state.now=Date.now(); if(state.tab!=='settings'&&state.tab!=='profile') render(); },60000);
 render(); refreshReal(); refreshNews(); refreshForecast(); loadAuthCfg();
 // Si el usuario ya dio permiso de ubicación antes, la zona se actualiza sola (nunca se vuelve a pedir permiso aquí).
-try{ if(navigator.permissions&&navigator.geolocation) navigator.permissions.query({name:'geolocation'}).then(p=>{ if(p.state==='granted') locate(); }).catch(()=>{}); }catch(e){}
+try{ if(navigator.permissions&&navigator.geolocation) navigator.permissions.query({name:'geolocation'}).then(p=>{ if(p.state==='granted'&&!(state.zone&&state.zone.mode==='demo')) locate(); }).catch(()=>{}); }catch(e){}
 </script>
 </body>
 </html>
