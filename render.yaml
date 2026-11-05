@@ -11,3 +11,27 @@ services:
         value: "22"
       - key: MONGODB_URI
         sync: false
+      # Google (opcionales; sin ellos la función correspondiente no aparece)
+      - key: GOOGLE_CLIENT_ID   # es público por diseño (va en la página)
+        value: 1096380838553-9qv03kc1evaekusj3id5aa4vuci07k7d.apps.googleusercontent.com
+      - key: ADSENSE_CLIENT
+        sync: false
+      - key: ADSENSE_SLOT
+        sync: false
+      - key: GPAY_ENV
+        value: TEST
+      - key: GOOGLE_MAPS_KEY   # restríngela por sitio web (referrer) en Google Cloud
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      # Planes
+      - key: BILLING_MODE      # "test" = cobro SIMULADO (demostraciones); sin valor, no se puede subir de plan
+        sync: false
+      - key: PARTNER_EMAILS    # correos de empresas autorizadas como socio, separados por comas
+        sync: false
+      - key: STATS_MIN_GROUP   # personas mínimas por grupo en estadísticas (10 por defecto)
+        sync: false
+      - key: STATS_INCLUDE_DEMO
+        sync: false

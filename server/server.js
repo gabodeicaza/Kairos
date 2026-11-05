@@ -6,7 +6,11 @@ import { fileURLToPath } from 'node:url';
 import { getNews, getNewsFor } from './news.js';
 import { getForecast, getForecastAt, isKnownRegion } from './forecast.js';
 import { lookupHazards, MX_BOX } from './hazards.js';
-import { handleAccounts } from './accounts.js';
+import { handleAccounts, sessionInfo } from './accounts.js';
+import { handleBilling } from './billing.js';
+import { FREE_RADIUS_KM, billingMode } from './plans.js';
+import { km } from './geo.js';
+import { handlePush, startPushLoop, pushConfigured, pushPublicKey } from './push.js';
 import { getStore, accountsConfigured } from './store.js';
 
 const WEB_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'web');
@@ -28,20 +32,47 @@ http.createServer(async (req, res) => {
   // /api/hazards solo acepta POST y /api/news acepta POST además de GET: los datos de ubicación viajan en el cuerpo
   // y no en la URL, que las plataformas suelen registrar.
   if (await handleAccounts(req, res, pathname, getStore)) return;   // /api/auth/*, /api/me, /api/profile, /api/account
+  if (await handlePush(req, res, pathname, getStore)) return;       // /api/push/*
+  if (await handleBilling(req, res, pathname, getStore, searchParams)) return;   // /api/plan/*, /api/partner/stats
   const allowed = pathname === '/api/hazards' ? ['POST'] : pathname === '/api/news' || pathname === '/api/forecast' ? ['GET', 'HEAD', 'POST'] : ['GET', 'HEAD'];
   if (!allowed.includes(req.method)) return send(res, 405, 'Method Not Allowed', { Allow: allowed.join(', ') });
   try {
     if (pathname === '/healthz') return send(res, 200, 'ok');
     if (pathname === '/api/config') {
       // Solo indica si hay cuentas; la cadena de conexión a MongoDB nunca sale del servidor.
-      return send(res, 200, JSON.stringify({ accounts: accountsConfigured() }), { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      // Solo valores públicos por diseño (client ids); los secretos y la cadena de MongoDB nunca salen del servidor.
+      const env = process.env;
+      return send(res, 200, JSON.stringify({
+        accounts: accountsConfigured(),
+        google: env.GOOGLE_CLIENT_ID ? { clientId: env.GOOGLE_CLIENT_ID } : null,
+        // Con cuentas, la clave del mapa va en /api/me y solo para Premium; sin cuentas (demo abierta) va aquí.
+        maps: !accountsConfigured() && env.GOOGLE_MAPS_KEY ? { key: env.GOOGLE_MAPS_KEY } : null,   // clave de navegador: restríngela por sitio web en Google Cloud
+        billing: billingMode(),
+        push: pushConfigured() ? { publicKey: pushPublicKey() } : null,
+        adsense: env.ADSENSE_CLIENT && env.ADSENSE_SLOT ? { client: env.ADSENSE_CLIENT, slot: env.ADSENSE_SLOT } : null,
+        gpay: { env: env.GPAY_ENV === 'PRODUCTION' ? 'PRODUCTION' : 'TEST', merchantId: env.GPAY_MERCHANT_ID || null,
+          gateway: env.GPAY_GATEWAY || null, gatewayMerchantId: env.GPAY_GATEWAY_MERCHANT_ID || null },
+      }), { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    }
+    if (pathname === '/ads.txt') {   // Google AdSense lo exige para verificar al editor: "ca-pub-123" -> "pub-123"
+      const pub = String(process.env.ADSENSE_CLIENT || '').replace(/^ca-/, '');
+      if (!/^pub-\d+$/.test(pub)) return send(res, 404, 'Not Found');
+      return send(res, 200, `google.com, ${pub}, DIRECT, f08c47fec0942fa0\n`, { 'Content-Type': 'text/plain; charset=utf-8' });
     }
     if (pathname === '/api/news') {
+      const who = await sessionInfo(getStore, req);
+      if (req.method !== 'POST' && who.plan === 'free') return send(res, 403, JSON.stringify({ error: 'Con el plan gratuito pide las noticias de tu zona (a 20 km) desde la app.' }), { 'Content-Type': 'application/json; charset=utf-8' });
+      if (who.plan === 'socio') return send(res, 403, JSON.stringify({ error: 'las cuentas de socio no usan las noticias de zona' }), { 'Content-Type': 'application/json; charset=utf-8' });
       if (req.method === 'POST') {
         let body;
         try { body = JSON.parse(await readBody(req, 1024)); } catch { return send(res, 400, JSON.stringify({ error: 'cuerpo JSON inválido' }), { 'Content-Type': 'application/json; charset=utf-8' }); }
         const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
-        const data = await getNewsFor({ muni: str(body && body.muni, 80), estado: str(body && body.estado, 60) });
+        let data = await getNewsFor({ muni: str(body && body.muni, 80), estado: str(body && body.estado, 60) });
+        if (who.plan === 'free') {
+          // Plan gratuito: solo lo que ocurre a 20 km de ti (por coordenadas) o nombra tu municipio. Sin ubicación no hay noticias.
+          const lat = body && body.lat, lon = body && body.lon, ok = typeof lat === 'number' && typeof lon === 'number' && Number.isFinite(lat) && Number.isFinite(lon);
+          data = { ...data, items: data.items.filter((i) => i.muni === true || (ok && i.geo && km({ lat, lon }, i.geo) <= FREE_RADIUS_KM)), limited: FREE_RADIUS_KM };
+        }
         return send(res, 200, JSON.stringify(data), { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       }
       const data = await getNews();
@@ -49,6 +80,7 @@ http.createServer(async (req, res) => {
     }
     if (pathname === '/api/forecast') {
       const json = { 'Content-Type': 'application/json; charset=utf-8' };
+      if ((await sessionInfo(getStore, req)).plan !== 'premium') return send(res, 402, JSON.stringify({ error: 'El pronóstico es parte del plan Premium.' }), json);
       let load;
       if (req.method === 'POST') {
         let body;
@@ -106,5 +138,5 @@ http.createServer(async (req, res) => {
     console.error(e);
     return send(res, 500, 'Error interno');
   }
-}).listen(PORT, '0.0.0.0', () => console.log(`Kairos escuchando en :${PORT}`));
+}).listen(PORT, '0.0.0.0', () => { console.log(`Kairos escuchando en :${PORT}`); startPushLoop(getStore); });
 

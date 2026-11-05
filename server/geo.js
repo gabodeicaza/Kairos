@@ -53,3 +53,10 @@ export const REGION_BOXES = {
 };
 export const regionsOf = (lon, lat) => Object.entries(REGION_BOXES)
   .filter(([, b]) => lon >= b.minLon && lon <= b.maxLon && lat >= b.minLat && lat <= b.maxLat).map(([id]) => id);
+
+/** Distancia en km entre dos puntos {lat, lon} (haversine). */
+export function km(a, b) {
+  const R = 6371, rad = (x) => (x * Math.PI) / 180, dLat = rad(b.lat - a.lat), dLon = rad(b.lon - a.lon);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}

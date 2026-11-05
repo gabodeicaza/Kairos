@@ -108,7 +108,7 @@ label.opt{display:flex;justify-content:space-between;align-items:center;padding:
 nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-radius:26px 26px 0 0;box-shadow:0 -6px 22px rgba(30,40,80,.08)}
 nav div{max-width:430px;margin:0 auto;display:flex;padding-bottom:env(safe-area-inset-bottom)}
 nav button{flex:1;border:0;background:none;padding:12px 0 14px;font:inherit;font-size:12px;color:#7D8393;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px}
-nav button svg{width:30px;height:30px}
+nav button svg{width:28px;height:28px}
 nav button.on{color:var(--accent)}
 @media(min-width:460px){#app{margin-top:0;box-shadow:0 0 40px rgba(30,40,80,.12)}}
 
@@ -146,6 +146,11 @@ nav button.on{color:var(--accent)}
 .prot{background:linear-gradient(135deg,#EAF7EF,#EAF1FF)}
 .bar{height:10px;border-radius:6px;background:var(--track);margin:10px 0;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent);border-radius:6px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
+.hasad #app{padding-bottom:12px}
+.mapslot{height:58vh;min-height:320px;max-height:520px;border-radius:24px;overflow:hidden;background:#E6E9F1;margin-bottom:12px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:0 4px 14px}.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+#adbox{max-width:430px;margin:0 auto;padding:0 20px 100px;min-height:0}
+#adbox small{display:block;color:var(--muted);font-size:11px;margin-bottom:4px}
 /* Preguntas según el riesgo de la zona */
 .q{padding:12px 0;border-top:1px solid var(--track)}.q:first-of-type{border-top:0}
 .q .qt{font-size:14.5px;line-height:1.35;margin-bottom:8px}
@@ -158,6 +163,7 @@ nav button.on{color:var(--accent)}
 </head>
 <body>
 <div id="app"></div>
+<div id="adbox" style="display:none"></div>
 <nav><div id="nav"></div></nav>
 
 <script>
@@ -236,7 +242,32 @@ const RULES=[
  R(SEIS,'ORANGE',st('sis-utilities','Aprende a cortar gas y electricidad','Ubica la llave del gas y el interruptor general; tras un sismo conviene cerrarlos si hay daños o huele a gas.',2,10,0,S)),
  R(SEIS,'ORANGE',st('sis-structure','Revisa grietas y el estado de tu vivienda','Grietas en columnas o muros de carga, o hundimientos, requieren la revisión de un perito o de Protección Civil.',2,30,0,A)),
  R(SEIS,'ORANGE',st('sis-backpack','Deja una mochila de emergencia junto a la salida','Documentos, linterna, silbato, botiquín, agua y medicinas: debe poder tomarse en segundos.',2,25,0,S,KIT)),
- R(SEIS,'RED',st('sis-evac','Sal con calma a un punto abierto','Lejos de edificios, cables y vidrios, y quédate ahí. Si estás dentro y no puedes salir, cúbrete junto a un muro firme.',1,5,0,S)),
+ R(SEIS,'RED',st('sis-evac','Planta baja: sal al punto de reunión. Piso 2 o más: zona de menor riesgo','Un sismo dura ~45 s: desde pisos altos no corras a la calle, ve a tu zona de menor riesgo (columna o muro de carga, lejos de vidrios) y evacúa al terminar. No grito, no corro, no empujo; sin elevadores.',1,5,0,S)),
+ R(SEIS,'RED',st('sis-trapped','Si quedas atrapado: calma, boca cubierta y pide ayuda','Cúbrete nariz y boca con un pañuelo, respira lento, golpea de forma rítmica para que te oigan y gasta la mínima energía.',1,5,0,S)),
+ R(SEIS,'YELLOW',st('man-plan','Escribe tu Plan Familiar de prevención','Datos de cada integrante (tipo de sangre, alergias, teléfonos), croquis con zonas de menor riesgo, rutas de salida y punto de reunión. Un plan escrito evita improvisar.',2,40,0,S)),
+ R(SEIS,'YELLOW',st('man-sketch','Dibuja el croquis de tu casa','Marca instalaciones de luz, agua y gas, extintor, botiquín, zonas de menor riesgo (muros de carga, lejos de vidrios y de la cocina), rutas y punto de reunión afuera.',3,30,0,S)),
+ R(SEIS,'YELLOW',st('man-routes','Mantén libres pasillos y salidas','Retira lo que estorbe la ruta; que las puertas de salida abran hacia afuera y no queden con llave. Señales luminiscentes si puedes.',3,15,0,S)),
+ R(SEIS,'YELLOW',st('man-roles','Reparte tareas entre quienes viven contigo','Quién cierra gas, agua y luz; quién lleva la mochila y el botiquín; quién ayuda a niñez y adultos mayores; quién llama al 911.',3,15,0,S)),
+ R(SEIS,'ORANGE',st('man-drill','Haz un simulacro en casa y cronométralo','Imagina una emergencia, evacuen por las rutas y midan el tiempo desde distintos cuartos; con niñez, adultos mayores o discapacidad toma más tiempo. Evalúen y ajusten.',2,30,0,S)),
+ R(SEIS,'YELLOW',st('man-docs','Guarda documentos clave en bolsa hermética','Actas, comprobante de domicilio, INE, CURP, escrituras, cartilla de vacunación e información médica; escanéalos y guárdalos también en USB o en línea.',3,30,0,A)),
+ R(SEIS,'YELLOW',st('man-extinguisher','Ten un extintor de 2.5 kg y detectores de humo','Visible y de fácil acceso, cerca de la cocina (para cocina, clase K); revisa su caducidad. Detectores en pasillos, sala y recámaras.',3,40,0,A)),
+ R(SEIS,'YELLOW',st('man-card','Llena y lleva tu tarjeta de seguridad','Datos de la familia y números de emergencia, plastificada y siempre contigo. Define una casa de familiar o amistad donde hospedarse si tienen que evacuar.',3,15,0,S)),
+ R(SEIS,'YELLOW',st('man-update','Actualiza el plan si algo cambió','Obras en casa, muebles nuevos, nuevos integrantes, personas con necesidades especiales u obras públicas cerca: cualquier cambio exige actualizar el plan.',4,10,0,S)),
+ R(SEIS,'YELLOW',st('man-911','Aprende a llamar al 911','Di qué pasó, dónde (con una referencia), cuántas personas hay, qué lesiones ves y tu nombre; no cuelgues hasta que te lo indiquen. Las llamadas falsas se castigan.',3,5,0,S)),
+ R(SEIS,'ORANGE',st('man-corr-elec','Corrige instalación eléctrica en mal estado','Cambia extensiones y cables dañados, no sobrecargues enchufes, cubre apagadores al alcance de niñas y niños y no conectes aparatos mojados.',2,30,0,A)),
+ R(SEIS,'ORANGE',st('man-corr-gas','Revisa y corrige fugas de gas','Agua con jabón en las conexiones: si hay burbujas llama a un especialista. La flama debe ser azul (roja indica monóxido de carbono); tanques afuera y a 3 m de interruptores y ventanas.',2,30,0,A)),
+ R(SEIS,'ORANGE',st('man-corr-struct','Corrige grietas y no modifiques muros de carga','Grietas anchas o pisos inclinados: que los revise un especialista. No quites ni debilites muros, trabes o columnas.',2,30,0,A)),
+ R(SEIS,'RED',st('man-no-risk','No arriesgues tu vida por objetos','Ni vuelvas por cosas. Aléjate de cristales, cables caídos y construcciones dañadas, y no uses el teléfono más que para emergencias reales.',1,5,0,S)),
+ R(SEIS,'YELLOW',st('man-post-power','Mantén cortados luz, agua y gas hasta revisar la casa','Usa linterna en vez de velas o cerillos hasta estar seguro de que no hay fugas; evita cables caídos y no bebas líquidos expuestos junto a vidrios rotos.',1,10,0),{post:true}),
+ R(SEIS,'YELLOW',st('man-post-rumors','Descarta rumores y sigue solo fuentes oficiales','Infórmate de Protección Civil; no compartas lo que no esté confirmado y reporta daños en drenaje o agua potable.',1,5,0),{post:true}),
+ R(SEIS,'ORANGE',st('man-post-fire','Si hay fuego: no uses agua en incendios eléctricos o de aceite','Eléctrico: corta la energía. Aceite: tapa o paño húmedo, nunca agua. Si no puedes controlarlo, evacúa y llama al 911; los incendios los apagan los bomberos.',1,5,0),{post:true}),
+ R(WATER,'YELLOW',st('man-flood-clean','Mantén coladeras y calle libres de basura','No tires basura ni grasas al drenaje, calles, canales o barrancas: tapan alcantarillas y provocan encharcamientos.',3,15,24,A)),
+ R(WATER,'ORANGE',st('man-flood-power','Si el agua entra a tu casa, desconecta la luz','Ten radio portátil, linterna, botiquín y pilas. No camines por zonas inundadas aunque el nivel sea bajo: sube rápido y la corriente arrastra.',1,10,6,S)),
+ R(WATER,'YELLOW',st('man-flood-docs','Escanea tus documentos y guárdalos en USB','Además de la bolsa hermética, una copia digital protege tus trámites si pierdes los originales.',3,20,24,A)),
+ R(WATER,'ORANGE',st('man-slide','Si vives en ladera: vigila grietas y árboles inclinados','Las lluvias intensas causan deslizamientos: no rellenes barrancas, no cortes el terreno sin asesoría y reporta grietas, fugas o escurrimientos a Protección Civil.',2,20,12,A)),
+ R(WATER,'YELLOW',st('man-post-clean','Desinfecta con cloro lo que tocó el agua','Limpia esquinas y superficies para evitar infecciones; no tomes agua ni comas alimentos que tocaron el agua desbordada, y revisa daños en agua potable y drenaje.',2,40,0),{post:true}),
+ R(NOT_SCAR,'YELLOW',st('man-alert-levels','Aprende los niveles de alerta meteorológica','Verde a púrpura: desde llevar paraguas y retirar basura de coladeras (amarilla) hasta guardar objetos exteriores (naranja) y desconectar la luz y evacuar si hay aviso de inundación (roja).',4,10,24,S)),
+ R(SCAR,'YELLOW',st('man-tank-clean','Limpia tinaco y cisterna dos veces al año','Revisa fugas, goteos y humedad en paredes, y el flotador del baño: cada gota cuenta cuando falta agua.',3,45,0,A)),
  R(SEIS,'RED',st('sis-aftershock','Prepárate para réplicas','Pueden ser fuertes: no regreses a espacios dañados y mantén calzado y linterna a la mano.',1,5,0,S)),
  R(SEIS,'YELLOW',st('sis-kids','Enseña a niñas y niños qué hacer en un sismo','Con un juego corto: dónde cubrirse, a dónde salir y que no deben correr.',3,15,0,S),{when:p=>p.hasChildren}),
  R(SEIS,'ORANGE',st('sis-elder','Planea la salida de quien se mueve lento','Zona segura cercana a su cuarto y quién le ayuda a salir; evita escaleras sin apoyo.',1,20,0,H),{when:p=>p.hasElderly}),
@@ -291,7 +322,7 @@ function parseEonet(json, box, now){
     if(!(c[0]>=x0&&c[0]<=x1&&c[1]>=y0&&c[1]<=y1)) continue;
     const wind=typeof g.magnitudeValue==='number'?g.magnitudeValue:null;
     out.push({id:ev.id,hazard,severity:hazard==='HURRICANE'?stormSeverity(wind):'YELLOW',
-      headline:`${ev.title}${wind!=null?` (vientos de ${Math.round(wind)} nudos)`:''}`,issued:t,impact:null,simulated:false,source:'NASA EONET'});
+      headline:`${ev.title}${wind!=null?` (vientos de ${Math.round(wind)} nudos)`:''}`,issued:t,impact:null,simulated:false,source:'NASA EONET',geo:{lat:c[1],lon:c[0]}});
   }
   return out;
 }
@@ -312,11 +343,11 @@ function newsAlerts(){
   for(const i of state.news.items){
     if(i.kind==='usgs'){                                   // sismos M4.5+ del USGS cerca de tu ubicación
       const m=+((i.title.match(/^Sismo M([\d.]+)/)||[])[1]), d=distTo(i), issued=Date.parse(i.date);
-      if(!m||d==null||isNaN(issued)||Date.now()-issued>72*HOUR||d>300||(m<5&&d>150)) continue;
+      if(!m||d==null||isNaN(issued)||Date.now()-issued>72*HOUR||d>(isFree()?FREE_KM:300)||(m<5&&d>150)) continue;   // gratis: solo sismos a 20 km
       const sev=m>=6.5?'RED':m>=5.5?'ORANGE':'YELLOW';
       if(!best.SEISMIC||SEV.indexOf(sev)>SEV.indexOf(best.SEISMIC.severity)||(sev===best.SEISMIC.severity&&issued>best.SEISMIC.issued))
         best.SEISMIC={id:'n'+(String(i.id).split('').reduce((h,c)=>(h*31+c.charCodeAt(0))>>>0,7)),hazard:'SEISMIC',severity:sev,issued,impact:issued,simulated:false,
-          headline:`${i.title} · a ${Math.round(d)} km de ti`,source:'USGS'};
+          headline:`${i.title} · a ${Math.round(d)} km de ti`,source:'USGS',geo:i.geo};
       continue;
     }
     if(!(i.kind==='gdacs'||(i.kind==='noaa'&&String(i.id).startsWith('nhc-active:')))||!visible(i,z)) continue;
@@ -325,14 +356,15 @@ function newsAlerts(){
     if(!hazard||isNaN(issued)||Date.now()-issued>72*HOUR) continue;
     const sev=i.kind==='gdacs'?(/roja/.test(t)?'RED':/naranja/.test(t)?'ORANGE':'YELLOW'):stormSeverity(+((t.match(/vientos de (\d+)/)||[])[1])||null);
     const d=distTo(i), a={id:'n'+(String(i.id).split('').reduce((h,c)=>(h*31+c.charCodeAt(0))>>>0,7)),hazard,severity:sev,issued,impact:null,simulated:false,
-      headline:t+(d!=null?` · a ${Math.round(d)} km de ti`:''),source:i.kind==='gdacs'?'GDACS (ONU/UE)':'NHC · NOAA'};
+      headline:t+(d!=null?` · a ${Math.round(d)} km de ti`:''),source:i.kind==='gdacs'?'GDACS (ONU/UE)':'NHC · NOAA',geo:i.geo};
     if(!best[hazard]||SEV.indexOf(sev)>SEV.indexOf(best[hazard].severity)) best[hazard]=a;   // una alerta por amenaza: la más grave
   }
   return Object.values(best).filter(a=>!state.real.some(r=>r.hazard===a.hazard));
 }
 function activeAlerts(){
-  const list=[...state.real,...newsAlerts()];
-  if(state.sim) list.unshift({id:'sim',hazard:state.sim.hazard,severity:state.sim.severity,issued:state.sim.issued,impact:state.sim.impact,
+  let list=[...state.real,...newsAlerts()];
+  if(isFree()) list=list.filter(a=>a.geo&&state.loc&&km(state.loc,a.geo)<=FREE_KM);   // gratis: solo alertas a 20 km
+  if(state.sim&&!isFree()) list.unshift({id:'sim',hazard:state.sim.hazard,severity:state.sim.severity,issued:state.sim.issued,impact:state.sim.impact,
     headline:'Alerta simulada para demostración',simulated:true,source:'Simulador'});
   return list.sort((a,b)=>SEV.indexOf(b.severity)-SEV.indexOf(a.severity)).map(a=>({alert:a,steps:generate(state.profile,a,zoneHighFor(a.hazard))}));
 }
@@ -355,9 +387,13 @@ const ICONS={
   plan:'<rect x="4" y="4" width="16" height="16" rx="4"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/>',
   alerts:'<path d="M6 17v-6a6 6 0 0 1 12 0v6l1.5 2h-15zM10 21a2 2 0 0 0 4 0"/>',
   settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+  stats:'<path d="M5 20V11M12 20V4M19 20v-6"/>',
+  account:'<circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="9.5" r="3.2"/><path d="M6.2 18.4c.9-2.6 3.1-3.9 5.8-3.9s4.9 1.3 5.8 3.9"/>',
+  map:'<path d="M12 21s-6-5.2-6-10a6 6 0 0 1 12 0c0 4.8-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/>',
   profile:'<circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="9.5" r="3.2"/><path d="M6.2 18.4c.9-2.6 3.1-3.9 5.8-3.9s4.9 1.3 5.8 3.9"/>',
 };
-const NAV=[['home','Inicio'],['plan','Plan'],['alerts','Alertas'],['profile','Perfil'],['settings','Ajustes']];
+const NAV_SOCIO=[['stats','Estadísticas'],['account','Cuenta']];
+const NAV=[['home','Inicio'],['plan','Plan'],['alerts','Alertas'],['map','Mapa'],['profile','Perfil'],['settings','Ajustes']];
 let openKey=null;
 
 /* Arco de 270° con la abertura abajo, como el anillo de Huawei Health */
@@ -425,12 +461,12 @@ async function fetchZone(lat,lon,mode){
     if(r.status===404){ state.zoneStatus='outside'; render(); return; }
     if(!r.ok) throw new Error('HTTP '+r.status);
     const d=await r.json();
-    state.zone={municipio:d.municipio,estado:d.estado,hazards:d.hazards,mode,partial:!!d.partial}; save('zone',state.zone); state.zoneStatus=null;
+    state.zone={municipio:d.municipio,estado:d.estado,hazards:d.hazards,mode,partial:!!d.partial}; save('zone',state.zone); state.zoneStatus=null; queueSync();
     state.loc=(mode==='gps'||mode==='demo')?{lat:Math.round(lat*100)/100,lon:Math.round(lon*100)/100}:null; save('loc',state.loc);
   }catch(e){ state.zoneStatus='error'; }
   render();
   // Todo lo que depende del lugar se vuelve a pedir con la ubicación: noticias (el servidor marca las que nombran tu municipio), alertas y pronóstico.
-  if(state.zone&&state.zoneStatus===null){ refreshNews(); refreshReal(); refreshForecast(); }
+  if(state.zone&&state.zoneStatus===null){ refreshNews(); refreshReal(); refreshForecast(); if(PUSH.enabled) pushSync(); }
 }
 function clearZone(){ state.zone=null; state.zoneStatus=null; state.loc=null; save('zone',null); save('loc',null); render(); refreshNews(); refreshReal(); refreshForecast(); }
 
@@ -580,7 +616,7 @@ async function refreshNews(){
   state.news.loading=true; state.news.error=null; render();
   try{
     const z=state.zone&&(state.zone.mode==='gps'||state.zone.mode==='demo')?state.zone:null;   // solo nombre de municipio y estado, en el cuerpo del POST
-    const r=await fetch('/api/news',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({muni:z?z.municipio:'',estado:z?z.estado||'':''})}); if(!r.ok) throw new Error('HTTP '+r.status);
+    const r=await fetch('/api/news',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({muni:z?z.municipio:'',estado:z?z.estado||'':'',...(isFree()&&state.loc?{lat:state.loc.lat,lon:state.loc.lon}:{})})}); if(!r.ok) throw new Error('HTTP '+r.status);   // free: el servidor solo devuelve lo que está a 20 km
     const d=await r.json(); state.news.items=Array.isArray(d.items)?d.items:[];
   }catch(e){ state.news.error='No se pudieron cargar las noticias.'; }
   state.news.loading=false; render();
@@ -621,7 +657,7 @@ function inZone(i,z){
   return !st.length&&(i.basins||[]).some(b=>z.basins.includes(b));       // aviso de cuenca sin estados: aplica a la costa de tu zona
 }
 function setNewsScope(s){ state.news.scope=s; state.news.all=false; render(); }
-function setRadius(v){ state.radius=v==='region'?'region':Number(v); save('radius',state.radius); state.news.all=false; render(); }
+function setRadius(v){ if(isFree()&&v==='region') return; state.radius=v==='region'?'region':Number(v); save('radius',state.radius); state.news.all=false; render(); }
 
 /* Distancia en km entre dos puntos (haversine) */
 function km(a,b){
@@ -630,13 +666,13 @@ function km(a,b){
   return 2*R*Math.asin(Math.sqrt(h));
 }
 const REGION_KM=250, AREAL_KM=600;                                      // "toda la región" para eventos con coordenadas
-const radiusNow=()=>state.loc?state.radius:'region';      // sin ubicación no hay radio
+const radiusNow=()=>!state.loc?'region':isFree()?Math.min(state.radius==='region'?FREE_KM:state.radius,FREE_KM):state.radius;      // sin ubicación no hay radio
 function distTo(i){ return state.loc&&i.geo?km(state.loc,i.geo):null; }
 /* Qué noticias se muestran según el radio elegido */
 function visible(i,z){
   const r=radiusNow();
   if(i.areal){                                            // ciclones y avisos de cuenca: abarcan cientos de km
-    const d=distTo(i); return d!=null?d<=AREAL_KM:inZone(i,z);
+    const d=distTo(i); return d!=null?d<=(isFree()?FREE_KM:AREAL_KM):inZone(i,z);
   }
   if(i.geo){                                              // sismos, inundaciones: distancia real
     const d=distTo(i);
@@ -654,7 +690,7 @@ function newsSection(){
   let h=`<div class="newshead" id="news"><h2>Noticias de tu zona</h2><button class="lnk" onclick="refreshNews()">Actualizar</button></div>
     <div class="muted small" style="margin:-2px 0 10px">📍 ${esc(where)}${scopeTxt}${state.zone?'':' · según tu región; detecta tu zona para afinarla'}</div>
     <div class="rad">`+[[5,'5 km'],[10,'10 km'],[20,'20 km'],['region','Toda la región']].map(([v,l])=>
-      `<button class="${r===v?'on':''}" ${!hasLoc&&v!=='region'?'disabled':''} onclick="setRadius('${v}')">${l}</button>`).join('')+`</div>`;
+      `<button class="${r===v?'on':''}" ${(!hasLoc&&v!=='region')||(isFree()&&v==='region')?'disabled':''} onclick="setRadius('${v}')">${isFree()&&v==='region'?'🔒 ':''}${l}</button>`).join('')+`</div>`;
   h+=!hasLoc?`<div class="muted small" style="margin:-4px 0 10px">Para usar 5, 10 o 20 km necesitamos tu ubicación: pulsa <b>Usar mi ubicación</b> en la tarjeta de tu zona.</div>`
     :r!=='region'?`<div class="muted small" style="margin:-4px 0 10px">Con radio: sismos e inundaciones por distancia real; comunicados solo si nombran tu municipio; ciclones a menos de 600 km.</div>`:'';
   h+=`<div class="tabs sm">`+kinds.map(([k,l])=>`<button class="${n.filter===k?'on':''}" onclick="setNewsFilter('${k}')">${l}</button>`).join('')+`</div>`;
@@ -662,7 +698,7 @@ function newsSection(){
   if(n.error&&!n.items.length) return h+`<div class="card muted">${n.error} <button class="btn ghost" onclick="refreshNews()">Reintentar</button></div>`;
   const outside=n.items.filter(i=>!visible(i,z)).length, all=n.scope==='all';
   const list=(all?n.items:n.items.filter(i=>visible(i,z))).filter(i=>n.filter==='all'||i.kind===n.filter);
-  const toggle=outside?`<button class="btn ghost" style="width:100%;margin-bottom:6px" onclick="setNewsScope('${all?'zone':'all'}')">${all?'Solo mi zona':'Incluir nacionales y globales ('+outside+')'}</button>`:'';
+  const toggle=outside&&!isFree()?`<button class="btn ghost" style="width:100%;margin-bottom:6px" onclick="setNewsScope('${all?'zone':'all'}')">${all?'Solo mi zona':'Incluir nacionales y globales ('+outside+')'}</button>`:'';
   if(!list.length){
     const where2=all?'Sin noticias recientes de esta fuente.':(r==='region'?'No hay noticias recientes de tu zona':'No hay noticias recientes a '+r+' km de ti')+(n.filter!=='all'?' en esta fuente':'')+'.';
     return h+`<div class="card muted">${where2}${!all&&r!=='region'?` <button class="btn ghost" onclick="setRadius('region')">Ampliar a toda la región</button>`:''}</div>`+toggle;
@@ -682,6 +718,7 @@ function newsSection(){
 }
 
 function home(){
+  if(isFree()) return freeHome();
   const items=activeAlerts(), t=items[0];
   let h=header();
   if(!t){
@@ -736,6 +773,7 @@ function home(){
 }
 
 function plan(){
+  if(!isPremium()) return header()+lockCard('El plan de acción');
   const items=activeAlerts(), zp=zonePlan(), plans=[...items,...(zp?[zp]:[])];
   let h=header();
   if(!plans.length) return h+`<div class="card muted">Sin alertas activas ni plan de zona. ${state.zone?'El peligro de tu municipio es muy bajo en las cinco amenazas.':'Detecta tu zona en Inicio para ver tu plan de preparación, o pulsa + para simular una alerta.'}</div>`+(state.zone?'':`<button class="btn" onclick="go('home');locate()">Detectar mi zona</button>`);
@@ -770,9 +808,12 @@ function plan(){
 function openStep(key){ openKey=openKey===key?null:key; render(); }
 
 function render(){
-  document.getElementById('app').innerHTML={home,plan,alerts,profile,settings}[state.tab]();
-  document.getElementById('nav').innerHTML=NAV.map(([k,l])=>`<button class="${state.tab===k?'on':''}" onclick="go('${k}')">
+  const view=currentView(), gated=view==='gate'||view==='onboarding';
+  document.getElementById('app').innerHTML={gate,onboarding,home,plan,alerts,map:mapView,profile,settings,stats:statsView,account:accountView}[view]();
+  document.querySelector('nav').style.display=gated?'none':'';
+  document.getElementById('nav').innerHTML=gated?'':(isSocio()?NAV_SOCIO:NAV).map(([k,l])=>`<button class="${state.tab===k?'on':''}" onclick="go('${k}')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[k]}</svg>${l}</button>`).join('');
+  if(view==='gate') mountGoogleButton(); else{ updateAd(); if(view==='map') mountMap(); if(view==='stats'&&!state.stats.data&&!state.stats.loading&&!state.stats.error) loadStats(); }
 }
 
 function alerts(){
@@ -789,23 +830,40 @@ function settings(){
   const s=state.sim||{hazard:'HURRICANE',severity:'ORANGE',hours:30};
   const opts=(o,sel)=>Object.entries(o).map(([k,v])=>`<option value="${k}" ${k===sel?'selected':''}>${v}</option>`).join('');
   return `<h1>Ajustes</h1>
+  ${planCard()}
   <div class="card"><b>Ubicación de ejemplo</b><div class="muted small" style="margin-top:4px">Elige Acapulco o Nuevo León para ver cómo cambian zona de peligro, noticias, alertas, pronóstico y plan.</div><div style="margin-top:10px"><select id="reg" onchange="setRegion(this.value)">${opts(Object.fromEntries(Object.entries(REGIONS).map(([k,v])=>[k,v.name])),state.region)}</select></div>
     <button class="btn ghost" style="padding-left:0" onclick="refreshReal();refreshNews()">Actualizar alertas</button></div>
+  ${pushCard()}
   <div class="card"><b>Tu hogar y tu cuenta</b><div class="muted small" style="margin:6px 0 10px">Las preguntas sobre tu hogar, vivienda, contactos y kit ahora están en la pestaña Perfil.${state.zone?` Tu zona se detecta con los mapas del CENAPRED (${esc(state.zone.municipio)}).`:''}</div>
     <button class="btn" onclick="go('profile')">Ir a Perfil</button>
     ${state.zone?'':`<label class="opt" style="margin-top:8px">Zona de riesgo alto (manual)<input class="sw" type="checkbox" ${state.zoneHigh?'checked':''} onchange="setZone(this.checked)"></label>
       <button class="btn ghost" style="padding-left:0" onclick="go('home');locate()">Detectar automáticamente</button>`}</div>
-  <div class="card"><b>Simulación</b><div class="muted small" style="margin-bottom:10px">Crea una alerta de prueba para ver el tablero completo.</div>
+  <div class="card" style="${isPremium()?'':'display:none'}"><b>Simulación</b><div class="muted small" style="margin-bottom:10px">Crea una alerta de prueba para ver el tablero completo.</div>
     <label class="opt">Amenaza<select id="sh">${opts(HAZARDS,s.hazard)}</select></label>
     <label class="opt">Severidad<select id="ss">${opts(SEV_LABEL,s.severity)}</select></label>
     <label class="opt">Impacto en (horas)<input id="sd" type="number" min="0" max="72" value="${s.hours||30}" style="width:90px"></label>
     <div class="row" style="margin-top:8px"><button class="btn" onclick="startSim()">Activar</button><button class="btn ghost" onclick="stopSim()">Quitar</button></div></div>
-  <div class="card"><b>Datos y privacidad</b><p class="muted small">Sin cuenta, tu perfil y tu avance se guardan solo en este navegador. Si creas una cuenta (pestaña Perfil), se guardan también en tu cuenta, y solo tú puedes verlos; ahí mismo puedes descargarlos o eliminarlos. La página consulta NASA EONET y el servidor de Kairos (noticias oficiales y pronóstico de Open-Meteo); esas consultas solo indican la región, nunca datos de tu hogar. Si detectas tu zona, tu ubicación (redondeada a ~1 km) viaja en el cuerpo de una petición para consultar el Atlas Nacional de Riesgos del CENAPRED y no se guarda en el servidor ni en tu cuenta; en este navegador se recuerdan tu municipio, su grado de peligro y esa ubicación aproximada para medir distancias. Al pedir noticias solo se envía el nombre de tu municipio y estado.</p>
+  <div class="card"><b>Fuentes de los planes de acción</b><p class="muted small">Las acciones preventivas, correctivas y de respuesta se basan en guías oficiales de Protección Civil, redactadas con palabras propias y adaptadas a tu zona:</p>
+    <ul class="muted small" style="margin:6px 0 6px 18px;padding:0">
+      <li>Plan Familiar para la Prevención de Riesgos (2025), Secretaría de Gestión Integral de Riesgos y Protección Civil de la Ciudad de México.</li>
+      <li>Manual de Protección Civil ante Casos de Emergencia, Contingencias y Desastres del STCONAPRA, Secretaría de Salud (2017).</li>
+      <li>Plan de Emergencia y Protección Civil, Centro de Computación y Telemática, Tecnológico de Estudios Superiores de Ecatepec.</li>
+      <li>Atlas Nacional de Riesgos del CENAPRED (peligro por zona).</li>
+    </ul>
+    <p class="muted small">Algunos datos (como el 911 o la alerta sísmica de 40–50 s) corresponden a la Ciudad de México; confirma qué aplica en tu municipio con tu Protección Civil local. Kairos es una guía de preparación y no sustituye las indicaciones de las autoridades.</p></div>
+  <div class="card"><b>Datos y privacidad</b><p class="muted small">Sin cuenta, tu perfil y tu avance se guardan solo en este navegador. Si creas una cuenta (pestaña Perfil), se guardan también en tu cuenta, y solo tú puedes verlos; ahí mismo puedes descargarlos o eliminarlos. La página consulta NASA EONET y el servidor de Kairos (noticias oficiales y pronóstico de Open-Meteo); esas consultas solo indican la región, nunca datos de tu hogar. Si detectas tu zona, tu ubicación (redondeada a ~1 km) viaja en el cuerpo de una petición para consultar el Atlas Nacional de Riesgos del CENAPRED y no se guarda en el servidor ni en tu cuenta (salvo la versión de ~11 km si activas los avisos push); en este navegador se recuerdan tu municipio, su grado de peligro y esa ubicación aproximada para medir distancias. Al pedir noticias solo se envía el nombre de tu municipio y estado.</p>
     <button class="btn ghost" style="padding-left:0" onclick="resetAll()">Borrar mis datos</button></div>`;
 }
 
 /* ===== Cuenta (servidor de Kairos + MongoDB). La sesión es una cookie HttpOnly: el JavaScript de la página nunca ve el token. ===== */
-const AUTH={cfg:false,user:null,mode:'in',msg:null,busy:false,syncState:null,confirmDelete:false};
+const AUTH={billing:'off',cfg:false,ready:false,cfgErr:false,google:null,ads:null,gpay:null,maps:null,push:null,email:'',user:null,mode:'in',msg:null,busy:false,syncState:null,confirmDelete:false};
+/* Sin sesión no se muestra nada de la app: solo la pantalla de entrada. (Si el servidor no tiene cuentas activadas, la app queda abierta como antes.) */
+/* Planes: free (anuncios, avisos a 20 km), premium ($199/mes o $1,000/año) y socio (empresas, $1,000/mes: estadísticas). El servidor también lo hace cumplir. */
+const planOf=()=>!AUTH.cfg?'premium':(AUTH.user&&AUTH.user.plan)||'free';   // sin cuentas en el servidor, todo abierto
+const isPremium=()=>planOf()==='premium', isFree=()=>planOf()==='free', isSocio=()=>planOf()==='socio';
+const FREE_KM=20;
+const needsOnboarding=()=>!!(AUTH.cfg&&AUTH.user&&!isSocio()&&!state.profile.onboarded);
+const gateActive=()=>!AUTH.ready||AUTH.cfgErr||(AUTH.cfg&&!AUTH.user);
 const signedIn=()=>!!(AUTH.cfg&&AUTH.user);
 async function api(method,path,body){
   const r=await fetch(path,{method,headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),credentials:'same-origin'});
@@ -813,9 +871,23 @@ async function api(method,path,body){
   return {ok:r.ok,status:r.status,j:j||{}};
 }
 async function loadAuthCfg(){
-  try{ const c=await (await fetch('/api/config')).json(); AUTH.cfg=!!c.accounts; }catch(e){}
-  if(AUTH.cfg) await cloudPull();
+  try{
+    const r=await fetch('/api/config'); if(!r.ok) throw 0;
+    const c=await r.json(); AUTH.cfg=!!c.accounts; AUTH.google=c.google||null; AUTH.ads=c.adsense||null; AUTH.gpay=c.gpay||null; AUTH.maps=c.maps||null; AUTH.push=c.push||null; AUTH.billing=c.billing||'off'; AUTH.cfgErr=false;
+  }catch(e){ AUTH.cfgErr=true; }
+  if(AUTH.cfg&&!AUTH.cfgErr) await cloudPull();
+  AUTH.ready=true;
+  if(!gateActive()) startApp();
   render();
+}
+/* Todo lo que pide datos o ubicación arranca solo cuando hay sesión (o el servidor no usa cuentas) */
+let started=false;
+function startApp(){
+  if(started) return; started=true;
+  refreshReal(); refreshNews(); if(isPremium()) refreshForecast(); pushInit();
+  if(state.zone&&state.zone.hazards&&!('SEISMIC' in state.zone.hazards)&&state.loc) fetchZone(state.loc.lat,state.loc.lon,state.zone.mode);   // zona guardada sin la capa de sismos
+  // Si el usuario ya dio permiso de ubicación antes, la zona se actualiza sola (nunca se vuelve a pedir permiso aquí).
+  try{ if(navigator.permissions&&navigator.geolocation) navigator.permissions.query({name:'geolocation'}).then(p=>{ if(p.state==='granted'&&!(state.zone&&state.zone.mode==='demo')) locate(); }).catch(()=>{}); }catch(e){}
 }
 function applyCloud(d){
   state.profile=cleanProfile(d.profile); state.done=(d.done&&typeof d.done==='object')?d.done:{};
@@ -827,7 +899,9 @@ async function cloudPull(){
     const r=await api('GET','/api/me');
     if(r.status===401){ AUTH.user=null; return; }
     if(!r.ok) throw 0;
-    AUTH.user={email:r.j.email};
+    AUTH.user={email:r.j.email,plan:r.j.plan||'free',planUntil:r.j.planUntil||null,partnerOk:!!r.j.partnerEligible};
+    AUTH.billing=r.j.billing||'off'; AUTH.maps=r.j.maps||AUTH.maps;   // la clave del mapa solo llega a Premium
+    if(planOf()!=='premium') AUTH.maps=null;
     if(r.j.data&&r.j.data.profile){ applyCloud(r.j.data); AUTH.syncState='ok'; } else await cloudPush();
   }catch(e){ AUTH.syncState='error'; }
 }
@@ -836,17 +910,301 @@ async function submitAuth(){
   const email=document.getElementById('aem').value.trim(), pw=document.getElementById('apw').value;
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { AUTH.msg={bad:true,t:'Escribe un correo válido.'}; return render(); }
   if(pw.length<8) { AUTH.msg={bad:true,t:'La contraseña debe tener al menos 8 caracteres.'}; return render(); }
-  AUTH.busy=true; AUTH.msg=null; render();
+  AUTH.email=email; AUTH.busy=true; AUTH.msg=null; render();
   try{
     const r=await api('POST',AUTH.mode==='up'?'/api/auth/signup':'/api/auth/login',{email,password:pw});
     if(!r.ok) AUTH.msg={bad:true,t:r.j.error||'No se pudo completar ('+r.status+').'};
     else{ AUTH.user={email:r.j.email}; AUTH.mode='in'; await cloudPull(); }
   }catch(e){ AUTH.msg={bad:true,t:'Sin conexión con el servidor. Inténtalo de nuevo.'}; }
-  AUTH.busy=false; render();
+  AUTH.busy=false; if(!gateActive()) startApp(); render();
 }
+/* ---- Google: inicio de sesión (Google Identity Services), pagos (Google Pay) y anuncios (AdSense) ---- */
+const loadScript=src=>new Promise((ok,fail)=>{ const s=document.createElement('script'); s.src=src; s.async=true; s.onload=ok; s.onerror=fail; document.head.appendChild(s); });
+let gisReady=null;
+async function mountGoogleButton(){
+  const el=document.getElementById('gbtn'); if(!el||!AUTH.google) return;
+  try{
+    gisReady=gisReady||loadScript('https://accounts.google.com/gsi/client').then(()=>google.accounts.id.initialize({client_id:AUTH.google.clientId,callback:onGoogleCredential,ux_mode:'popup'}));
+    await gisReady;
+    const again=document.getElementById('gbtn'); if(!again) return;
+    google.accounts.id.renderButton(again,{type:'standard',theme:'outline',size:'large',shape:'pill',text:'continue_with',locale:'es-419',width:280});
+  }catch(e){ gisReady=null; const b=document.getElementById('gbtn'); if(b) b.innerHTML='<span class="muted small">No se pudo cargar Google. Revisa tu conexión.</span>'; }
+}
+async function onGoogleCredential(resp){
+  AUTH.busy=true; AUTH.msg=null; render();
+  try{
+    const r=await api('POST','/api/auth/google',{credential:resp.credential});
+    if(!r.ok) AUTH.msg={bad:true,t:r.j.error||'No se pudo entrar con Google ('+r.status+').'};
+    else{ AUTH.user={email:r.j.email}; await cloudPull(); }
+  }catch(e){ AUTH.msg={bad:true,t:'Sin conexión con el servidor. Inténtalo de nuevo.'}; }
+  AUTH.busy=false; if(!gateActive()) startApp(); render();
+}
+/* Google Pay: solo modo de PRUEBA. No hay procesador de pagos conectado, así que no se cobra nada ni se envía el token a ningún lado. */
+const PAY={msg:null};
+async function payWithGoogle(id){
+  const sg=SEGUROS.find(x=>x.id===id), st=seguroStatus(sg), c=AUTH.gpay||{env:'TEST'}; PAY.msg=null;
+  try{
+    if(!(window.google&&google.payments&&google.payments.api)) await loadScript('https://pay.google.com/gp/p/js/pay.js');
+    const client=new google.payments.api.PaymentsClient({environment:c.env});
+    await client.loadPaymentData({apiVersion:2,apiVersionMinor:0,
+      allowedPaymentMethods:[{type:'CARD',parameters:{allowedAuthMethods:['PAN_ONLY','CRYPTOGRAM_3DS'],allowedCardNetworks:['MASTERCARD','VISA']},
+        tokenizationSpecification:{type:'PAYMENT_GATEWAY',parameters:{gateway:c.gateway||'example',gatewayMerchantId:c.gatewayMerchantId||'exampleGatewayMerchantId'}}}],
+      transactionInfo:{totalPriceStatus:'FINAL',totalPrice:st.price.toFixed(2),currencyCode:'MXN',countryCode:'MX'},
+      merchantInfo:{merchantName:'Kairos',...(c.merchantId?{merchantId:c.merchantId}:{})}});
+    state.profile.seguros[id]=2; save('profile',state.profile); queueSync();
+    PAY.msg={id,t:'Pago de prueba aceptado. No se cobró nada y no hay una aseguradora conectada.'};
+  }catch(e){ if(e&&e.statusCode==='CANCELED') return; PAY.msg={id,bad:true,t:'No se pudo abrir Google Pay en este navegador.'}; }
+  render();
+}
+/* Anuncios: un solo recuadro fijo fuera de la app (no se recarga con cada render), solo en Inicio y Perfil y siempre no personalizados. */
+let adLoaded=false;
+function updateAd(){
+  const box=document.getElementById('adbox'), show=!!(AUTH.ads&&isFree()&&currentView()!=='gate'&&currentView()!=='onboarding'&&(state.tab==='home'||state.tab==='profile'));
+  box.style.display=show?'':'none'; document.body.classList.toggle('hasad',show);
+  if(!show||adLoaded) return; adLoaded=true;
+  box.innerHTML=`<small>Publicidad (no personalizada)</small><ins class="adsbygoogle" style="display:block" data-ad-client="${esc(AUTH.ads.client)}" data-ad-slot="${esc(AUTH.ads.slot)}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
+  window.adsbygoogle=window.adsbygoogle||[]; window.adsbygoogle.requestNonPersonalizedAds=1;
+  const s=document.createElement('script'); s.async=true; s.crossOrigin='anonymous'; s.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client='+encodeURIComponent(AUTH.ads.client);
+  s.onload=()=>{ try{ window.adsbygoogle.push({}); }catch(e){} }; s.onerror=()=>{ box.style.display='none'; }; document.head.appendChild(s);
+}
+/* ===== Mapa (Google Maps JavaScript API): tu ubicación, tu radio y los eventos con coordenadas ===== */
+const MAP={el:null,map:null,markers:[],circle:null,me:null,info:null,key:'',err:null,loading:null};
+window.gm_authFailure=()=>{ MAP.err='Google rechazó la clave del mapa. Revisa que la Maps JavaScript API esté habilitada y que esta dirección esté autorizada en la clave.'; if(state.tab==='map') render(); };
+const loadMaps=()=>MAP.loading||(MAP.loading=new Promise((ok,fail)=>{
+  if(window.google&&google.maps&&google.maps.Map) return ok();
+  const s=document.createElement('script'); s.async=true; s.src='https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(AUTH.maps.key)+'&language=es&region=MX';
+  s.onload=ok; s.onerror=()=>{ MAP.loading=null; fail(new Error('script')); }; document.head.appendChild(s);
+}));
+function mapPoints(){
+  const out=[];
+  for(const i of state.news.items){ if(i.geo) out.push({geo:i.geo,title:i.title,link:i.link,date:i.date,kind:i.kind,src:i.source}); }
+  for(const a of state.real){ if(a.geo) out.push({geo:a.geo,title:a.headline,date:new Date(a.issued).toISOString(),kind:'nasa-event',src:a.source}); }
+  return out;
+}
+function mapColor(p){
+  if(p.kind==='usgs'){ const m=+((p.title.match(/^Sismo M([\d.]+)/)||[])[1])||0; return m>=6?'#D91E36':m>=5?'#FF7A00':'#E5A100'; }
+  return /^Inundaci/i.test(p.title)?'#2F6BFF':'#6A55D3';
+}
+function mapView(){
+  const h=header()+`<h1 style="margin-top:0">Mapa</h1>`;
+  if(!isPremium()) return h+lockCard('El mapa');
+  if(!AUTH.maps) return h+`<div class="card muted">El mapa aún no está activado en este servidor.</div>`;
+  const r=radiusNow(), rtxt=state.loc?(r==='region'?'toda la región (~250 km)':'a '+r+' km'):'sin ubicación: se muestra la región elegida';
+  return h+`<div class="muted small" style="margin:-8px 0 10px">📍 ${esc(placeName())} · ${rtxt}</div>
+    ${MAP.err?`<div class="note bad">${esc(MAP.err)}</div>`:''}<div id="mapslot" class="mapslot"></div>
+    <div class="legend"><span><i style="background:#1F6BFF"></i>Tú</span><span><i style="background:#FF7A00"></i>Sismo</span><span><i style="background:#6A55D3"></i>Ciclón</span><span><i style="background:#2F6BFF;border:2px solid #fff;box-shadow:0 0 0 1px #2F6BFF"></i>Inundación</span></div>
+    <div class="muted small" style="margin:0 4px 14px">Toca un punto para ver el detalle. El círculo es tu radio de noticias. Datos: USGS, GDACS, NHC y NASA EONET.</div>`;
+}
+async function mountMap(){
+  const slot=document.getElementById('mapslot'); if(!slot||!AUTH.maps||MAP.err) return;
+  try{ await loadMaps(); }catch(e){ slot.innerHTML='<div class="muted small" style="padding:20px">No se pudo cargar Google Maps. Revisa tu conexión.</div>'; return; }
+  const again=document.getElementById('mapslot'); if(!again) return;
+  const ref=REGION_REF[state.region]||[19.4,-99.1], c=state.loc?{lat:state.loc.lat,lon:state.loc.lon}:{lat:ref[0],lon:ref[1]};
+  const r=radiusNow(), km_=r==='region'?250:r, zoom=r==='region'?7:r<=5?12:r<=10?11:10;
+  if(!MAP.map){
+    MAP.el=document.createElement('div'); MAP.el.style.cssText='width:100%;height:100%';
+    MAP.map=new google.maps.Map(MAP.el,{center:{lat:c.lat,lng:c.lon},zoom,mapTypeControl:false,streetViewControl:false,fullscreenControl:false,clickableIcons:false});
+    MAP.info=new google.maps.InfoWindow();
+  }
+  again.appendChild(MAP.el);
+  const key=`${c.lat},${c.lon},${r}`;
+  if(MAP.key!==key){ MAP.key=key; MAP.map.setCenter({lat:c.lat,lng:c.lon}); MAP.map.setZoom(zoom); }
+  google.maps.event.trigger(MAP.map,'resize');
+  MAP.markers.forEach(m=>m.setMap(null)); MAP.markers=[];
+  if(MAP.circle) MAP.circle.setMap(null); if(MAP.me) MAP.me.setMap(null);
+  if(state.loc){
+    MAP.circle=new google.maps.Circle({map:MAP.map,center:{lat:c.lat,lng:c.lon},radius:km_*1000,strokeColor:'#1F6BFF',strokeOpacity:.7,strokeWeight:2,fillColor:'#1F6BFF',fillOpacity:.06,clickable:false});
+    MAP.me=new google.maps.Marker({map:MAP.map,position:{lat:c.lat,lng:c.lon},title:'Tu ubicación',zIndex:999,icon:{path:google.maps.SymbolPath.CIRCLE,scale:8,fillColor:'#1F6BFF',fillOpacity:1,strokeColor:'#fff',strokeWeight:3}});
+  }
+  for(const p of mapPoints()){
+    const col=mapColor(p), here=state.loc?km(state.loc,p.geo):null;
+    const m=new google.maps.Marker({map:MAP.map,position:{lat:p.geo.lat,lng:p.geo.lon},title:p.title,icon:{path:google.maps.SymbolPath.CIRCLE,scale:p.kind==='usgs'?9:11,fillColor:col,fillOpacity:.85,strokeColor:'#fff',strokeWeight:2}});
+    m.addListener('click',()=>{
+      const link=/^https:\/\//.test(p.link||'')?`<div style="margin-top:6px"><a href="${esc(p.link)}" target="_blank" rel="noopener noreferrer">Ver fuente ↗</a></div>`:'';
+      MAP.info.setContent(`<div style="max-width:230px;font:14px system-ui"><b>${esc(p.title)}</b><div style="color:#666;font-size:12px;margin-top:4px">${esc(p.src||'')} · ${ago(p.date)}${here!=null?' · a '+Math.round(here)+' km de ti':''}</div>${link}</div>`);
+      MAP.info.open({map:MAP.map,anchor:m});
+    });
+    MAP.markers.push(m);
+  }
+}
+
+/* ===== Avisos push (service worker + Web Push). Activarlos guarda en el servidor tu zona en baja precisión (~11 km). ===== */
+const PUSH={enabled:false,busy:false,msg:null,supported:('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window)};
+const b64u=k=>{ const p='='.repeat((4-k.length%4)%4), r=(k+p).replace(/-/g,'+').replace(/_/g,'/'), raw=atob(r); return Uint8Array.from([...raw].map(c=>c.charCodeAt(0))); };
+async function pushReg(){ return navigator.serviceWorker.register('/sw.js').then(()=>navigator.serviceWorker.ready); }
+async function pushInit(){
+  if(!PUSH.supported||!AUTH.push||!signedIn()) return;
+  try{ const reg=await pushReg(); PUSH.enabled=!!(await reg.pushManager.getSubscription()); if(state.tab==='settings') render(); }catch(e){}
+}
+const coarse=()=>state.loc?{lat:state.loc.lat,lon:state.loc.lon}:null;
+async function pushSync(){
+  try{ const reg=await pushReg(), sub=await reg.pushManager.getSubscription(), c=coarse(); if(sub&&c) await api('POST','/api/push/subscribe',{subscription:sub.toJSON(),...c}); }catch(e){}
+}
+async function enablePush(){
+  PUSH.msg=null;
+  if(!coarse()){ PUSH.msg={bad:true,t:'Primero detecta tu zona o elige un lugar de ejemplo: los avisos dependen de dónde estás.'}; return render(); }
+  PUSH.busy=true; render();
+  try{
+    if(await Notification.requestPermission()!=='granted') throw Object.assign(new Error('perm'),{perm:true});
+    const reg=await pushReg();
+    const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(AUTH.push.publicKey)});
+    const r=await api('POST','/api/push/subscribe',{subscription:sub.toJSON(),...coarse()});
+    if(!r.ok){ await sub.unsubscribe(); throw new Error('server'); }
+    PUSH.enabled=true; PUSH.msg={t:'Listo: te avisaremos en este dispositivo. Puedes mandarte una prueba.'};
+  }catch(e){ PUSH.msg={bad:true,t:e.perm?'No diste permiso de notificaciones. Puedes activarlo en los ajustes del navegador.':'No se pudieron activar los avisos. Inténtalo de nuevo.'}; }
+  PUSH.busy=false; render();
+}
+async function disablePush(silent){
+  try{
+    const reg=await pushReg(), sub=await reg.pushManager.getSubscription();
+    if(sub){ await api('POST','/api/push/unsubscribe',{subscription:sub.toJSON()}); await sub.unsubscribe(); }
+  }catch(e){}
+  PUSH.enabled=false; if(!silent){ PUSH.msg={t:'Avisos desactivados y tu zona borrada del servidor.'}; render(); }
+}
+async function testPush(){
+  PUSH.busy=true; PUSH.msg=null; render();
+  try{ const reg=await pushReg(), sub=await reg.pushManager.getSubscription(); const r=sub&&await api('POST','/api/push/test',{subscription:sub.toJSON()});
+    PUSH.msg=r&&r.ok?{t:'Enviada. Debe llegarte en unos segundos.'}:{bad:true,t:'No se pudo enviar la prueba.'};
+  }catch(e){ PUSH.msg={bad:true,t:'No se pudo enviar la prueba.'}; }
+  PUSH.busy=false; render();
+}
+function pushCard(){
+  const head=`<div class="card"><b>🔔 Avisos en este dispositivo</b>`;
+  if(!AUTH.push) return head+`<p class="muted small">Los avisos aún no están activados en este servidor.</p></div>`;
+  if(!signedIn()) return head+`<p class="muted small">Inicia sesión para activarlos.</p></div>`;
+  if(!PUSH.supported) return head+`<p class="muted small">Este navegador no admite notificaciones push. En iPhone, agrega Kairos a la pantalla de inicio y ábrelo desde ahí.</p></div>`;
+  const m=PUSH.msg?`<div class="note ${PUSH.msg.bad?'bad':''}">${esc(PUSH.msg.t)}</div>`:'';
+  const denied=typeof Notification!=='undefined'&&Notification.permission==='denied';
+  return head+`<p class="muted small" style="margin:6px 0">Te avisamos de ${isFree()?'sismos, ciclones e inundaciones graves a menos de 20 km (el plan Premium amplía el radio)':'sismos M5+ a menos de 300 km y de ciclones o inundaciones graves cerca de ti'}, aunque no tengas la app abierta. Para eso guardamos en el servidor tu zona <b>aproximada (~11 km)</b> y el identificador de este navegador; se borran al desactivar los avisos o eliminar tu cuenta.</p>${m}
+    ${denied?`<div class="note bad">Las notificaciones están bloqueadas en este navegador; actívalas en sus ajustes.</div>`:''}
+    <div class="row" style="gap:8px;flex-wrap:wrap">${PUSH.enabled
+      ?`<button class="btn" ${PUSH.busy?'disabled':''} onclick="testPush()">Enviarme una prueba</button><button class="btn ghost" onclick="disablePush()">Desactivar</button>`
+      :`<button class="btn" ${PUSH.busy||denied?'disabled':''} onclick="enablePush()">${PUSH.busy?'Espera…':'Activar avisos'}</button>`}</div></div>`;
+}
+const PRICE_UI={premium_month:199,premium_year:1000,socio_month:1000};
+const BILL={msg:null,busy:false};
+const untilTxt=()=>{ const d=AUTH.user&&AUTH.user.planUntil; return d?new Date(d).toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'}):''; };
+function upgradeButtons(){
+  const off=AUTH.billing!=='test', m=BILL.msg?`<div class="note ${BILL.msg.bad?'bad':''}">${esc(BILL.msg.t)}</div>`:'';
+  return m+`<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" ${BILL.busy?'disabled':''} onclick="buy('premium_month')">Premium · $199 al mes</button>
+    <button class="btn" style="background:#16181D" ${BILL.busy?'disabled':''} onclick="buy('premium_year')">$1,000 al año</button></div>
+    <div class="muted small" style="margin-top:6px">El plan anual equivale a ~$83 al mes (ahorras $1,388).${off?' Los pagos reales aún no están conectados.':' Modo de prueba: no se cobra nada.'}</div>`;
+}
+function lockCard(what){
+  return `<div class="card prot"><div style="font-size:30px">🔒</div><b style="font-size:18px">${esc(what)} es parte de Premium</b>
+    <div class="muted small" style="margin:6px 0 12px">Premium incluye tu plan de acción personalizado, el mapa, el pronóstico, los microseguros, avisos y noticias sin el límite de 20 km, y sin anuncios.</div>${upgradeButtons()}</div>`;
+}
+function planCard(){
+  const p=planOf(), label={free:'Gratis',premium:'Premium',socio:'Socio'}[p];
+  const m=BILL.msg?`<div class="note ${BILL.msg.bad?'bad':''}">${esc(BILL.msg.t)}</div>`:'';
+  let h=`<div class="card"><div class="row"><b style="flex:1;font-size:18px">Tu plan</b>${pill(label,p==='free'?'#8A90A0':'#22B07D',true)}</div>`;
+  if(p==='free'){
+    h+=`<div class="muted small" style="margin:6px 0 12px">Gratis: anuncios y avisos o noticias a 20 km. Premium desbloquea el plan de acción, el mapa, el pronóstico y los microseguros, sin anuncios.</div>`+upgradeButtons();
+    if(AUTH.user&&AUTH.user.partnerOk) h+=`<div style="border-top:1px solid var(--track);margin-top:14px;padding-top:12px"><b>Plan Socio (empresas)</b><div class="muted small" style="margin:4px 0 8px">Tu empresa está autorizada. Accede a estadísticas agregadas y anónimas de lo que reporta la gente por zona.</div>
+      <button class="btn" style="background:#6A55D3" ${BILL.busy?'disabled':''} onclick="buy('socio_month')">Activar Socio · $1,000 al mes</button></div>`;
+  }else h+=`<div class="muted small" style="margin:6px 0">${p==='socio'?'Plan Socio':'Premium'} vigente hasta ${untilTxt()}.</div>${m}<button class="btn ghost" style="padding-left:0" onclick="cancelPlan()">Cancelar plan</button>`;
+  return h+`</div>`;
+}
+async function gpayCharge(totalMxn){
+  const c=AUTH.gpay||{env:'TEST'};
+  if(!(window.google&&google.payments&&google.payments.api)) await loadScript('https://pay.google.com/gp/p/js/pay.js');
+  const client=new google.payments.api.PaymentsClient({environment:c.env});
+  return client.loadPaymentData({apiVersion:2,apiVersionMinor:0,
+    allowedPaymentMethods:[{type:'CARD',parameters:{allowedAuthMethods:['PAN_ONLY','CRYPTOGRAM_3DS'],allowedCardNetworks:['MASTERCARD','VISA']},
+      tokenizationSpecification:{type:'PAYMENT_GATEWAY',parameters:{gateway:c.gateway||'example',gatewayMerchantId:c.gatewayMerchantId||'exampleGatewayMerchantId'}}}],
+    transactionInfo:{totalPriceStatus:'FINAL',totalPrice:Number(totalMxn).toFixed(2),currencyCode:'MXN',countryCode:'MX'},
+    merchantInfo:{merchantName:'Kairos',...(c.merchantId?{merchantId:c.merchantId}:{})}});
+}
+async function buy(key){
+  BILL.msg=null;
+  if(AUTH.billing!=='test'){ BILL.msg={bad:true,t:'Los pagos reales aún no están conectados.'}; return render(); }
+  BILL.busy=true; render();
+  try{
+    await gpayCharge(PRICE_UI[key]);                                    // hoja de Google Pay (modo prueba: no cobra)
+    const r=await api('POST','/api/plan/checkout',{plan:key});
+    if(!r.ok) throw Object.assign(new Error(r.j.error||'No se pudo activar el plan.'),{server:true});
+    await cloudPull(); if(isPremium()){ refreshForecast(); if(PUSH.enabled) pushSync(); }
+    BILL.msg={t:'¡Plan activado! (pago de prueba)'};
+  }catch(e){ BILL.msg=(e&&e.statusCode==='CANCELED')?null:{bad:true,t:e&&e.server?e.message:'No se pudo completar el pago.'}; }
+  BILL.busy=false; render();
+}
+async function cancelPlan(){ try{ await api('POST','/api/plan/cancel',{}); await cloudPull(); BILL.msg=null; }catch(e){} render(); }
+
+/* Inicio del plan gratuito: alertas y noticias a 20 km, todo lo demás bloqueado */
+function freeHome(){
+  const items=activeAlerts();
+  let h=header()+`<div class="calm"><div class="muted">${esc(placeName())} · a ${FREE_KM} km a la redonda</div>
+    <div class="big">${items.length?'Alerta cerca de ti':'Todo en calma'}</div>
+    <div class="muted small" style="position:relative">${items.length?items.map(i=>esc(HAZARDS[i.alert.hazard])+': '+esc(i.alert.headline)).join('<br>'):'No hay alertas activas a 20 km de ti.'}</div></div>`;
+  if(items.length) h+=`<div class="note bad">Tu plan gratuito te avisa, pero el <b>plan de acción</b> para esta alerta (qué hacer, cuándo y dónde) es de Premium.</div>`;
+  h+=zoneCard()+lockCard('El plan de acción, el pronóstico y el mapa')+newsSection();
+  return h;
+}
+
+/* Alta obligatoria de datos (gratis y Premium): hogar, zona y permiso para estadísticas agregadas */
+function onboarding(){
+  const p=state.profile;
+  const num=(k,l,max)=>`<div class="fld half"><label>${l}</label><input type="number" inputmode="numeric" min="0" max="${max}" value="${p[k]}" onchange="setField('${k}',this.value)"></div>`;
+  const ready=p.consentStats&&!!state.zone;
+  return `<div style="text-align:center;padding:28px 0 6px"><div style="font-size:40px">🛟</div><h1 style="margin:6px 0 4px">Cuéntanos de ti</h1>
+    <div class="muted small">Kairos adapta tus avisos a tu zona y a tu hogar. Son pocos datos y solo los ves tú (y, sin tu nombre, en estadísticas agregadas).</div></div>
+    <div class="card"><b>Tu hogar</b><div class="grid2" style="margin-top:6px">${num('adults','Personas adultas',20)}${num('children','Niñas y niños',20)}${num('elderly','Personas adultas mayores',20)}${num('pets','Mascotas',30)}</div>
+      <div class="grid2"><div class="fld half"><label>Vivienda</label><select onchange="setField('housing',this.value)">${[['casa','Casa'],['depto','Departamento'],['otro','Otro']].map(([v,l])=>`<option value="${v}" ${p.housing===v?'selected':''}>${l}</option>`).join('')}</select></div>${num('floor','Piso (0 = planta baja)',100)}</div></div>
+    ${zoneCard()}
+    <div class="card"><label class="opt" style="align-items:flex-start;gap:12px"><span class="small" style="flex:1">Acepto que mis respuestas, <b>sin mi nombre ni correo</b>, se usen de forma <b>agregada y anónima</b> en estadísticas por zona para empresas socias de Kairos. Solo se publican cifras de grupos de al menos 10 personas.</span>
+      <input class="sw" type="checkbox" ${p.consentStats?'checked':''} onchange="setConsent(this.checked)"></label></div>
+    <button class="btn" style="width:100%" ${ready?'':'disabled'} onclick="finishOnboarding()">Empezar</button>
+    ${ready?'':`<div class="muted small" style="text-align:center;margin-top:8px">Para continuar: detecta tu zona (o elige un lugar de ejemplo) y acepta el uso agregado de tus datos.</div>`}`;
+}
+function setConsent(v){ state.profile.consentStats=!!v; save('profile',state.profile); render(); }
+function finishOnboarding(){ state.profile.onboarded=true; save('profile',state.profile); queueSync(); cloudPush(); render(); }
+
+/* Cuentas de socio: estadísticas agregadas (el servidor suprime los grupos con menos de 10 personas) */
+state.stats={data:null,loading:false,error:null,level:'estado'};
+async function loadStats(level){
+  if(level) state.stats.level=level;
+  state.stats.loading=true; state.stats.error=null; render();
+  try{
+    const r=await api('GET','/api/partner/stats?nivel='+state.stats.level);
+    if(!r.ok) throw new Error(r.j.error||'HTTP '+r.status);
+    state.stats.data=r.j;
+  }catch(e){ state.stats.error=e.message||'No se pudieron cargar las estadísticas.'; }
+  state.stats.loading=false; render();
+}
+const barRow=(label,v,color)=>`<div style="margin:6px 0"><div class="row small" style="justify-content:space-between"><span>${esc(label)}</span><b>${v==null?'–':v+' %'}</b></div><div class="bar" style="margin:3px 0"><i style="width:${v||0}%;background:${color||'var(--accent)'}"></i></div></div>`;
+function statsView(){
+  const st=state.stats, d=st.data;
+  let h=`<h1>Estadísticas</h1><div class="muted" style="margin-bottom:12px">Lo que reportan las personas en cada zona, de forma agregada y anónima.</div>
+    <div class="rad"><button class="${st.level==='estado'?'on':''}" onclick="loadStats('estado')">Por estado</button><button class="${st.level==='municipio'?'on':''}" onclick="loadStats('municipio')">Por municipio</button><button onclick="loadStats()">Actualizar</button></div>`;
+  if(st.error) return h+`<div class="note bad">${esc(st.error)}</div>`;
+  if(!d) return h+`<div class="card muted">${st.loading?'Cargando…':'Sin datos.'}</div>`;
+  h+=`<div class="muted small" style="margin-bottom:12px">Solo se muestran grupos de al menos ${d.minimoPorGrupo} personas que aceptaron participar. ${d.suprimidos.groups?`${d.suprimidos.groups} grupo(s) pequeño(s) ocultos por privacidad.`:''}</div>`;
+  if(!d.grupos.length) return h+`<div class="card muted">Todavía no hay grupos con suficientes personas para mostrar cifras sin identificar a nadie.</div>`;
+  return h+d.grupos.map(g=>`<div class="card"><div class="row"><b style="flex:1;font-size:18px">${esc(g.zona)}</b>${pill(g.personas+' personas','#6A55D3')}</div>
+    <div class="muted small" style="margin:10px 0 2px">Hogares</div>${barRow('Con niñas y niños',g.hogares.conNinos)}${barRow('Con personas mayores',g.hogares.conMayores)}${barRow('Con mascotas',g.hogares.conMascotas)}${barRow('Con movilidad reducida',g.hogares.movilidadReducida)}${barRow('En planta baja',g.hogares.plantaBaja)}
+    <div class="muted small" style="margin:12px 0 2px">Preparación</div>${barRow('Kit de emergencia completo (promedio)',g.botiquinKitPromedioPct,'#22B07D')}
+    <div class="small muted">Pasos del plan completados por persona: <b>${g.pasosPromedioDelPlan}</b></div>
+    ${g.carencias.length?`<div class="muted small" style="margin:12px 0 2px">Carencias más reportadas (de quienes respondieron)</div>`+g.carencias.slice(0,6).map(c=>barRow(c.hazard+' · '+c.label+' ('+c.answered+')',c.pct,'#E8261C')).join(''):''}</div>`).join('')
+    +`<div class="muted small" style="margin:4px 4px 16px">Generado ${new Date(d.generado).toLocaleString('es-MX')}. Las cifras reflejan a quienes usan Kairos, no a toda la población.</div>`;
+}
+function accountView(){ return `<h1>Cuenta</h1>${planCard()}${accountCard()}`; }
+function currentView(){
+  if(gateActive()) return 'gate';
+  if(isSocio()){ if(state.tab!=='stats'&&state.tab!=='account') state.tab='stats'; return state.tab; }
+  if(state.tab==='stats'||state.tab==='account') state.tab='home';
+  return needsOnboarding()?'onboarding':state.tab;
+}
+function gate(){
+  const head=`<div style="text-align:center;padding:44px 0 20px"><div style="font-size:48px">🛟</div><h1 style="margin:8px 0 4px">Kairos</h1><div class="muted">Prepárate antes de que llegue el riesgo</div></div>`;
+  if(!AUTH.ready) return head+`<div class="card muted" style="text-align:center">Cargando…</div>`;
+  if(AUTH.cfgErr) return head+`<div class="card"><div class="note bad">No se pudo conectar con el servidor.</div><button class="btn" onclick="AUTH.ready=false;AUTH.cfgErr=false;render();loadAuthCfg()">Reintentar</button></div>`;
+  return head+authForm()+`<div class="muted small" style="text-align:center;margin:4px 12px">Inicia sesión para ver las alertas, noticias, el plan y los microseguros de tu zona con tus datos. Tu perfil solo lo ves tú.</div>`;
+}
+
 async function signOut(){
   try{ await api('POST','/api/auth/logout',{}); }catch(e){}
-  AUTH.user=null; AUTH.syncState=null; clearLocalData();   // en un dispositivo compartido no debe quedar tu perfil
+  try{ await disablePush(true); }catch(e){}   // en un dispositivo compartido no deben llegar avisos de la cuenta anterior
+  AUTH.user=null; AUTH.syncState=null; started=false; clearLocalData();   // en un dispositivo compartido no debe quedar tu perfil
   render();
 }
 async function deleteAccount(){
@@ -859,7 +1217,8 @@ async function deleteAccount(){
   }catch(e){ AUTH.msg={bad:true,t:'No se pudo eliminar. Inténtalo de nuevo.'}; }
   AUTH.busy=false; AUTH.confirmDelete=false; render();
 }
-const cloudPayload=()=>({profile:state.profile,done:state.done,region:state.region});
+const cloudPayload=()=>({profile:state.profile,done:state.done,region:state.region,
+  zone:state.zone&&state.zone.municipio?{municipio:state.zone.municipio,estado:state.zone.estado||'',mode:state.zone.mode==='demo'?'demo':'gps'}:null});   // solo municipio y estado, nunca coordenadas
 let syncTimer=null;
 function queueSync(){ if(!signedIn()) return; AUTH.syncState='pending'; clearTimeout(syncTimer); syncTimer=setTimeout(cloudPush,900); }
 async function cloudPush(){
@@ -901,6 +1260,11 @@ const ZONE_Q=[
  {id:'s-drill',hz:'SEISMIC',min:3,gap:'no',q:'¿Han hecho un simulacro de sismo en casa en el último año?',step:{title:'Haz un simulacro de sismo en casa',detail:'Cronométralo: agacharse, cubrirse, sujetarse y salir con calma. Repítelo cada año.',min:20,hb:0,cat:'SAFETY'}},
  {id:'s-gas',hz:'SEISMIC',min:3,gap:'no',q:'¿Sabes cerrar la llave del gas y la electricidad de tu casa?',step:{title:'Aprende a cerrar gas y electricidad',detail:'Ubica la llave del gas y el interruptor general; tras un sismo evitan incendios y explosiones.',min:10,hb:0,cat:'SAFETY'}},
  {id:'s-cracks',hz:'SEISMIC',min:3,gap:'yes',q:'¿Tu vivienda tiene grietas en muros o columnas, o la construyeron sin revisión estructural?',step:{title:'Pide una revisión estructural',detail:'Acude a Protección Civil de tu municipio o a un perito (Director Responsable de Obra); un daño previo empeora con un sismo.',min:30,hb:0,cat:'ASSETS'}},
+ {id:'s-gasleak',hz:'SEISMIC',min:2,gap:'no',q:'¿Has revisado fugas de gas con agua y jabón, y la flama de tu estufa o boiler es azul?',step:{title:'Revisa fugas de gas y la flama',detail:'Agua con jabón en las conexiones: si salen burbujas, llama a un especialista. Una flama roja indica monóxido de carbono. Tras un sismo, un escape causa incendios.',min:20,hb:0,cat:'ASSETS'}},
+ {id:'s-elec',hz:'SEISMIC',min:2,gap:'no',q:'¿Tus extensiones y cables eléctricos están en buen estado y sin sobrecargar?',step:{title:'Corrige tu instalación eléctrica',detail:'Reemplaza cables dañados, no sobrecargues enchufes y revisa la luz con un electricista si hay chispas o apagadores calientes.',min:30,hb:0,cat:'ASSETS'}},
+ {id:'s-plan',hz:'SEISMIC',min:2,gap:'no',q:'¿Tienes por escrito un plan familiar con croquis, rutas de salida y punto de reunión?',step:{title:'Escribe tu plan familiar con croquis',detail:'Dibuja tu casa con instalaciones, zonas de menor riesgo, rutas y punto de reunión, y reparte tareas entre quienes viven contigo.',min:40,hb:0,cat:'SAFETY'}},
+ {id:'s-extinguisher',hz:'SEISMIC',min:3,gap:'no',q:'¿Tienes extintor vigente (2.5 kg) y detectores de humo en casa?',step:{title:'Consigue extintor y detectores de humo',detail:'Extintor visible y de fácil acceso cerca de la cocina, con la caducidad al día, y detectores en pasillos, sala y recámaras.',min:40,hb:0,cat:'ASSETS'}},
+ {id:'f-drain',hz:'FLOOD',min:2,gap:'no',q:'¿Mantienes limpias las coladeras y no tiras basura ni grasas al drenaje?',step:{title:'Limpia coladeras y drenaje',detail:'Barre tu calle y retira basura de las coladeras de dentro y fuera de casa antes de la temporada de lluvias.',min:15,hb:24,cat:'ASSETS'}},
  {id:'w-tank',hz:'WATER_SCARCITY',min:2,gap:'no',q:'¿Tienes tinaco, cisterna o recipientes para guardar agua?',step:{title:'Consigue dónde almacenar agua',detail:'Bidones o recipientes con tapa, limpios, para al menos 3 L por persona al día.',min:30,hb:0,cat:'ASSETS'}},
  {id:'w-reserve',hz:'WATER_SCARCITY',min:2,gap:'no',q:'¿Tu reserva de agua alcanza para 3 días?',step:{title:'Completa tu reserva de 3 días',detail:'3 L por persona al día, más lo de tus mascotas. Renueva el agua guardada cada mes.',min:30,hb:0,cat:'ASSETS'}},
  {id:'w-tandeo',hz:'WATER_SCARCITY',min:3,gap:'yes',q:'¿Tu colonia recibe agua por tandeo o con pipas?',step:{title:'Anota horarios de tandeo y de pipas',detail:'Pregunta al organismo operador de agua de tu municipio por los horarios y cómo solicitar una pipa; ten recipientes listos para esos días.',min:20,hb:0,cat:'SHELTER'}},
@@ -941,10 +1305,10 @@ function cleanProfile(p){
   const o={...d,...p};
   o.adults=cnt(o.adults,20)||1; o.children=cnt(o.children,20); o.elderly=cnt(o.elderly,20); o.pets=cnt(o.pets,30);
   o.housing=['casa','depto','otro'].includes(o.housing)?o.housing:'casa'; o.floor=String(cnt(o.floor,100)); o.meeting=txt(o.meeting,80);
-  o.mobility=!!o.mobility; o.hasCar=!!o.hasCar;
+  o.mobility=!!o.mobility; o.hasCar=!!o.hasCar; o.consentStats=!!o.consentStats; o.onboarded=!!o.onboarded;
   o.contacts=d.contacts.map((_,i)=>({name:txt(p.contacts&&p.contacts[i]&&p.contacts[i].name,60),phone:txt(p.contacts&&p.contacts[i]&&p.contacts[i].phone,20).replace(/[^\d+\s()-]/g,'')}));
   o.kit={}; HOME_KIT.forEach(([k])=>{ if(p.kit&&p.kit[k]) o.kit[k]=true; });
-  o.seguros={}; SEGUROS.forEach(sg=>{ if(p.seguros&&p.seguros[sg.id]) o.seguros[sg.id]=true; });
+  o.seguros={}; SEGUROS.forEach(sg=>{ if(p.seguros&&p.seguros[sg.id]) o.seguros[sg.id]=p.seguros[sg.id]===2?2:1; });   // 1 = me interesa, 2 = contratado en modo de prueba
   o.answers={}; ZONE_Q.forEach(q=>{ const a=p.answers&&p.answers[q.id]; if(a==='yes'||a==='no') o.answers[q.id]=a; });
   return derive(o);
 }
@@ -958,7 +1322,7 @@ function setField(k,v,rerender){
 }
 function setContact(i,f,v){ state.profile.contacts[i][f]=f==='phone'?txt(v,20).replace(/[^\d+\s()-]/g,''):txt(v,60); save('profile',state.profile); queueSync(); }
 function setAnswer(id,v){ const a=state.profile.answers; if(a[id]===v) delete a[id]; else a[id]=v; save('profile',state.profile); queueSync(); render(); }
-function setInterest(id){ const m=state.profile.seguros; if(m[id]) delete m[id]; else m[id]=true; save('profile',state.profile); queueSync(); render(); }
+function setInterest(id){ const m=state.profile.seguros; if(m[id]) delete m[id]; else m[id]=1; save('profile',state.profile); queueSync(); render(); }
 function toggleSeguros(){ state.segOpen=!state.segOpen; render(); }
 function setKit(k,v){ if(v) state.profile.kit[k]=true; else delete state.profile.kit[k]; save('profile',state.profile); queueSync(); render(); }
 
@@ -972,12 +1336,13 @@ function protectionPanel(){
     ${shield(true,'<b>Tu sesión no se puede robar con scripts.</b> Va en una cookie protegida (HttpOnly, solo mismo sitio) que ningún código de la página puede leer. Caduca a los 30 días y se invalida al cerrar sesión.')}
     ${shield(true,'<b>Conexión cifrada (HTTPS)</b> entre tu dispositivo, Kairos y la base de datos (MongoDB Atlas), que además cifra los datos en reposo.')}
     ${shield(true,'<b>Protección contra adivinar contraseñas:</b> limitamos los intentos de inicio de sesión.')}
-    ${shield(true,'<b>No vendemos ni compartimos</b> tus datos y no los usamos para publicidad. Solo sirven para personalizar tu plan.')}
+    ${shield(true,'<b>No vendemos tus datos personales.</b> Las empresas socias solo ven estadísticas agregadas y anónimas por zona, de grupos de al menos 10 personas que aceptaron participar; nunca tu correo, contactos ni respuestas individuales.')}
     ${shield(true,'<b>Tú mandas:</b> puedes descargar todo lo que guardamos y eliminar tu cuenta y tus datos cuando quieras, desde aquí.')}
     ${shield(false,'<b>Límite honesto:</b> no es cifrado de extremo a extremo. Quien administra el servidor y la base de datos de Kairos podría ver los datos con sus credenciales de administrador. Por eso no pedimos datos de salud ni documentos, y el teléfono de contactos es opcional.')}`
     :`${shield(true,'<b>Tus datos se quedan en este navegador.</b> No hay cuenta ni base de datos configurada, así que nada de tu perfil sale de tu dispositivo.')}
     ${shield(false,'Si borras los datos del navegador o cambias de dispositivo, se pierden. Puedes descargarlos con el botón de abajo.')}`}
-    ${shield(true,'<b>Tu ubicación</b> se redondea a ~1 km, se queda en tu navegador y nunca se guarda en nuestro servidor ni en tu cuenta.')}
+    ${AUTH.google||AUTH.ads?shield(false,'<b>Servicios de Google.</b> '+[AUTH.google?'Si entras con Google, Google ve que usas Kairos y nosotros solo recibimos tu correo verificado.':'',AUTH.ads?'Los anuncios, si aparecen, son no personalizados y nunca salen en alertas ni en el plan.':'','Google Pay funciona en modo de prueba: no se cobra nada.'].filter(Boolean).join(' ')):''}
+    ${shield(true,'<b>Tu ubicación</b> se redondea a ~1 km y se queda en tu navegador. No se guarda en nuestro servidor ni en tu cuenta, salvo que actives los avisos push: entonces guardamos solo una versión de ~11 km para poder avisarte, hasta que los desactives.')}
   </div>`;
 }
 function accountCard(){
@@ -990,13 +1355,17 @@ function accountCard(){
     <div style="margin-top:6px">${AUTH.confirmDelete?`<div class="note bad">Se eliminará tu cuenta y todos tus datos de la nube. No se puede deshacer.</div>
       <div class="row" style="gap:8px"><button class="btn" style="background:#D93025" ${AUTH.busy?'disabled':''} onclick="deleteAccount()">Sí, eliminar definitivamente</button><button class="btn ghost" onclick="AUTH.confirmDelete=false;render()">Cancelar</button></div>`
       :`<button class="btn ghost" style="padding-left:0;color:#D93025" onclick="deleteAccount()">Eliminar mi cuenta y mis datos</button>`}</div></div>`;
-  const up=AUTH.mode==='up';
+  return authForm();
+}
+function authForm(){
+  const m=AUTH.msg?`<div class="note ${AUTH.msg.bad?'bad':''}">${esc(AUTH.msg.t)}</div>`:'', up=AUTH.mode==='up';
   return `<div class="card"><b>${up?'Crea tu cuenta':'Inicia sesión'}</b>
     <p class="muted small">Guarda tu perfil y tu avance para tenerlos en cualquier dispositivo. Es opcional: Kairos funciona igual sin cuenta.</p>${m}
-    <div class="fld"><label>Correo</label><input id="aem" type="email" autocomplete="email" placeholder="tu@correo.com"></div>
+    <div class="fld"><label>Correo</label><input id="aem" type="email" autocomplete="email" placeholder="tu@correo.com" value="${esc(AUTH.email||'')}"></div>
     <div class="fld"><label>Contraseña (mínimo 8 caracteres)</label><input id="apw" type="password" autocomplete="${up?'new-password':'current-password'}" onkeydown="if(event.key==='Enter')submitAuth()"></div>
     <div class="row" style="gap:8px;margin-top:10px"><button class="btn" ${AUTH.busy?'disabled':''} onclick="submitAuth()">${AUTH.busy?'Espera…':up?'Crear cuenta':'Entrar'}</button>
-    <button class="btn ghost" onclick="setAuthMode('${up?'in':'up'}')">${up?'Ya tengo cuenta':'Crear cuenta'}</button></div></div>`;
+    <button class="btn ghost" onclick="setAuthMode('${up?'in':'up'}')">${up?'Ya tengo cuenta':'Crear cuenta'}</button></div>
+    ${AUTH.google?`<div class="muted small" style="text-align:center;margin:14px 0 8px">o</div><div id="gbtn" style="display:flex;justify-content:center;min-height:44px"></div>`:''}</div>`;
 }
 /* Qué medidas de prevención aplica el usuario para este seguro: ok = ya lo hace, no = le falta, ? = falta responder */
 function seguroStatus(sg){
@@ -1016,6 +1385,14 @@ function seguroStatus(sg){
   const sc=sg.hz?gradeScore(sg.hz):(state.zone?zoneLevel():null);
   return {checks,met,frac,disc,price:Math.round(sg.base*(1-disc/100)),rec:sc!=null&&sc>=2,sc};
 }
+function seguroButtons(sg,st){
+  const own=state.profile.seguros[sg.id], pm=PAY.msg&&PAY.msg.id===sg.id?`<div class="note ${PAY.msg.bad?'bad':''}">${esc(PAY.msg.t)}</div>`:'';
+  const test=(AUTH.gpay&&AUTH.gpay.env)!=='PRODUCTION';
+  return pm+`<div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px">
+    ${own===2?`<span class="pill" style="background:#22B07D;color:#fff">✓ Contratado (prueba)</span>`:
+      `<button class="btn ${own?'':'ghost'}" style="${own?'':'padding-left:0'}" onclick="setInterest('${sg.id}')">${own?'✓ Me interesa':'Me interesa'}</button>
+       ${test?`<button class="btn" style="background:#16181D" onclick="payWithGoogle('${sg.id}')">Pagar $${st.price} con Google Pay (prueba)</button>`:''}`}</div>`;
+}
 function segurosSection(){
   const list=SEGUROS.map(sg=>({sg,st:seguroStatus(sg)})).sort((a,b)=>b.st.rec-a.st.rec);
   const alertHz=new Set(activeAlerts().map(x=>x.alert.hazard));
@@ -1032,7 +1409,7 @@ function segurosSection(){
       ${st.checks.length?`<div class="bar"><i style="width:${Math.round(st.frac*100)}%"></i></div><div class="small">${st.checks.map(c=>`<div>${icon[c.st]} ${esc(c.t)}</div>`).join('')}</div>
         ${st.checks.some(c=>c.st==='?')?`<div class="muted small" style="margin-top:4px">❔ Responde las preguntas de la tarjeta anterior para que cuenten.</div>`:''}`:''}
       ${sg.hz&&alertHz.has(sg.hz)?`<div class="small" style="color:#E8261C;margin-top:6px">⚠️ Hay una alerta activa de esta amenaza: un seguro nuevo suele tener periodo de espera, por eso conviene contratarlo antes.</div>`:''}
-      <button class="btn ${state.profile.seguros[sg.id]?'':'ghost'}" style="margin-top:8px;${state.profile.seguros[sg.id]?'':'padding-left:0'}" onclick="setInterest('${sg.id}')">${state.profile.seguros[sg.id]?'✓ Me interesa':'Me interesa'}</button></div>`;
+      ${seguroButtons(sg,st)}</div>`;
   }).join('');
 }
 function profileZoneQuestions(){
@@ -1051,7 +1428,8 @@ function profile(){
   ${accountCard()}
   ${protectionPanel()}
   ${profileZoneQuestions()}
-  <div class="card"><div class="row"><b style="flex:1;font-size:18px">🛟 Microseguros</b><button class="btn ghost" onclick="toggleSeguros()">${state.segOpen?'Ocultar':'Ver opciones'}</button></div>
+  ${isPremium()?'':lockCard('Los microseguros')}
+  <div class="card" style="${isPremium()?'':'display:none'}"><div class="row"><b style="flex:1;font-size:18px">🛟 Microseguros</b><button class="btn ghost" onclick="toggleSeguros()">${state.segOpen?'Ocultar':'Ver opciones'}</button></div>
     ${state.segOpen?segurosSection():`<div class="muted small" style="margin-top:4px">6 opciones de bajo costo cuya prima baja según cómo previenes. Se calculan con lo que respondes en esta pantalla.</div>`}</div>
   <div class="card"><b>Tu hogar</b><div class="muted small" style="margin-bottom:8px">Con esto el plan te pide justo lo que necesitas (por ejemplo, rutas lentas si hay personas mayores).</div>
     <div class="grid2">${num('adults','Personas adultas',20)}${num('children','Niñas y niños',20)}${num('elderly','Personas adultas mayores',20)}${num('pets','Mascotas',30)}</div>
@@ -1094,11 +1472,9 @@ function stopSim(){ state.sim=null; save('sim',null); render(); }
 function resetAll(){ ['done','sim','profile','zoneHigh','region','zone','loc','radius'].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
   state.sim=null;state.zoneHigh=false; state.radius='region'; clearLocalData(); render(); }   // borra solo este navegador; tu cuenta se elimina desde Perfil
 
-setInterval(()=>{ state.now=Date.now(); if(state.tab!=='settings'&&state.tab!=='profile') render(); },60000);
-render(); refreshReal(); refreshNews(); refreshForecast(); loadAuthCfg();
+setInterval(()=>{ state.now=Date.now(); if(['home','plan','alerts'].includes(currentView())) render(); },60000);
+render(); loadAuthCfg();
 // Si el usuario ya dio permiso de ubicación antes, la zona se actualiza sola (nunca se vuelve a pedir permiso aquí).
-if(state.zone&&state.zone.hazards&&!('SEISMIC' in state.zone.hazards)&&state.loc) fetchZone(state.loc.lat,state.loc.lon,state.zone.mode);   // zona guardada sin la capa de sismos
-try{ if(navigator.permissions&&navigator.geolocation) navigator.permissions.query({name:'geolocation'}).then(p=>{ if(p.state==='granted'&&!(state.zone&&state.zone.mode==='demo')) locate(); }).catch(()=>{}); }catch(e){}
 </script>
 </body>
 </html>
