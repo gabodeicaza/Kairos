@@ -1,21 +1,30 @@
 // Pronóstico de calor y lluvia (Open-Meteo, https://open-meteo.com, datos CC BY 4.0, uso no comercial).
-// Las coordenadas son fijas por región piloto: el cliente nunca envía coordenadas.
+// Con ubicación detectada se consulta por coordenadas (redondeadas a ~1 km, viajan en el cuerpo de un POST y no se guardan);
+// sin ella, por las coordenadas fijas de la región piloto.
 
 const TTL_MS = 30 * 60 * 1000;
 const PLACES = {
   'sw-guerrero': { name: 'Acapulco', lat: 16.86, lon: -99.88 },
   'ne-tamaulipas-nl': { name: 'Monterrey', lat: 25.67, lon: -100.31 },
 };
-const cache = new Map(); // regionId -> { at, data }
+const cache = new Map(); // región o "lat,lon" -> { at, data }
 
 export const isKnownRegion = (id) => Object.hasOwn(PLACES, id);
 
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
-export async function getForecast(regionId) {
-  const place = PLACES[regionId];
-  const hit = cache.get(regionId);
-  if (hit && Date.now() - hit.at < TTL_MS) return hit.data;
+export const getForecast = (regionId) => fetchForecast(regionId, PLACES[regionId]);
+
+/** Pronóstico para un punto cualquiera de México. `name` es solo la etiqueta que se muestra. */
+export function getForecastAt(lat, lon, name) {
+  const r2 = (v) => Math.round(v * 100) / 100;
+  const place = { name: String(name || 'tu ubicación').slice(0, 80), lat: r2(lat), lon: r2(lon) };
+  return fetchForecast(`${place.lat},${place.lon}`, place);
+}
+
+async function fetchForecast(key, place) {
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < TTL_MS) return { ...hit.data, place: place.name };
   try {
     const url = 'https://api.open-meteo.com/v1/forecast?' + new URLSearchParams({
       latitude: place.lat, longitude: place.lon, timezone: 'America/Mexico_City', forecast_days: '5',
@@ -36,10 +45,11 @@ export async function getForecast(regionId) {
       current: { temp: num(j.current?.temperature_2m), feels: num(j.current?.apparent_temperature), code: num(j.current?.weather_code) },
       days, source: 'Open-Meteo.com',
     };
-    cache.set(regionId, { at: Date.now(), data });
+    if (cache.size >= 200) cache.delete(cache.keys().next().value);
+    cache.set(key, { at: Date.now(), data });
     return data;
   } catch (e) {
-    if (hit) return hit.data; // último dato bueno si la fuente falla
+    if (hit) return { ...hit.data, place: place.name }; // último dato bueno si la fuente falla
     throw e;
   }
 }

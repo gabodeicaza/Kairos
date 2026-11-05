@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, extname, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getNews, getNewsFor } from './news.js';
-import { getForecast, isKnownRegion } from './forecast.js';
+import { getForecast, getForecastAt, isKnownRegion } from './forecast.js';
 import { lookupHazards, MX_BOX } from './hazards.js';
 import { handleAccounts } from './accounts.js';
 import { getStore, accountsConfigured } from './store.js';
@@ -28,7 +28,7 @@ http.createServer(async (req, res) => {
   // /api/hazards solo acepta POST y /api/news acepta POST además de GET: los datos de ubicación viajan en el cuerpo
   // y no en la URL, que las plataformas suelen registrar.
   if (await handleAccounts(req, res, pathname, getStore)) return;   // /api/auth/*, /api/me, /api/profile, /api/account
-  const allowed = pathname === '/api/hazards' ? ['POST'] : pathname === '/api/news' ? ['GET', 'HEAD', 'POST'] : ['GET', 'HEAD'];
+  const allowed = pathname === '/api/hazards' ? ['POST'] : pathname === '/api/news' || pathname === '/api/forecast' ? ['GET', 'HEAD', 'POST'] : ['GET', 'HEAD'];
   if (!allowed.includes(req.method)) return send(res, 405, 'Method Not Allowed', { Allow: allowed.join(', ') });
   try {
     if (pathname === '/healthz') return send(res, 200, 'ok');
@@ -48,10 +48,26 @@ http.createServer(async (req, res) => {
       return send(res, 200, JSON.stringify(data), { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
     }
     if (pathname === '/api/forecast') {
-      const region = searchParams.get('region');
-      if (!isKnownRegion(region)) return send(res, 400, JSON.stringify({ error: 'región desconocida' }), { 'Content-Type': 'application/json; charset=utf-8' });
+      const json = { 'Content-Type': 'application/json; charset=utf-8' };
+      let load;
+      if (req.method === 'POST') {
+        let body;
+        try { body = JSON.parse(await readBody(req, 1024)); } catch { return send(res, 400, JSON.stringify({ error: 'cuerpo JSON inválido' }), json); }
+        const lat = body && body.lat, lon = body && body.lon;
+        if (typeof lat !== 'number' || typeof lon !== 'number' || !Number.isFinite(lat) || !Number.isFinite(lon)
+          || lon < MX_BOX.minLon || lon > MX_BOX.maxLon || lat < MX_BOX.minLat || lat > MX_BOX.maxLat) {
+          return send(res, 400, JSON.stringify({ error: 'lat y lon deben estar dentro de México' }), json);
+        }
+        load = () => getForecastAt(lat, lon, typeof body.name === 'string' ? body.name : '');
+        json['Cache-Control'] = 'no-store';
+      } else {
+        const region = searchParams.get('region');
+        if (!isKnownRegion(region)) return send(res, 400, JSON.stringify({ error: 'región desconocida' }), json);
+        load = () => getForecast(region);
+        json['Cache-Control'] = 'public, max-age=600';
+      }
       try {
-        return send(res, 200, JSON.stringify(await getForecast(region)), { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
+        return send(res, 200, JSON.stringify(await load()), json);
       } catch (e) {
         console.error('forecast:', e.message);
         return send(res, 502, JSON.stringify({ error: 'pronóstico no disponible' }), { 'Content-Type': 'application/json; charset=utf-8' });

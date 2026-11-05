@@ -146,6 +146,14 @@ nav button.on{color:var(--accent)}
 .prot{background:linear-gradient(135deg,#EAF7EF,#EAF1FF)}
 .bar{height:10px;border-radius:6px;background:var(--track);margin:10px 0;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent);border-radius:6px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
+/* Preguntas según el riesgo de la zona */
+.q{padding:12px 0;border-top:1px solid var(--track)}.q:first-of-type{border-top:0}
+.q .qt{font-size:14.5px;line-height:1.35;margin-bottom:8px}
+.yn{display:flex;gap:8px}.yn button{flex:1;border:1.5px solid var(--track);background:#fff;border-radius:50px;padding:8px 0;font:inherit;font-weight:600;font-size:14px;color:var(--text);cursor:pointer}
+.yn button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.chips{display:flex;gap:8px;overflow-x:auto;margin:0 -20px 14px;padding:0 20px;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
+.chips button{flex:none;border:0;border-radius:50px;padding:9px 16px;font:inherit;font-size:14px;font-weight:600;background:#fff;color:var(--text);cursor:pointer}
+.chips button.on{background:var(--text);color:#fff}
 </style>
 </head>
 <body>
@@ -162,8 +170,8 @@ const SEV_HERO = {
   GREEN:['#0BA36B','#2EE59D'], YELLOW:['#D99100','#FFC53D'], ORANGE:['#E85D00','#FF9A2E'], RED:['#D91E36','#FF5A6A']};
 const CATS = {SAFETY:'Seguridad personal', ASSETS:'Aseguramiento de bienes', PETS:'Planes para mascotas', SHELTER:'Alternativas de refugio'};
 const CAT_COLOR = {SAFETY:'#1F8BFF', ASSETS:'#8B5CF6', PETS:'#FF7A1A', SHELTER:'#00C2B3'};
-const PHASES = ['ONGOING','EARLY','MINUS_12','MINUS_2','POST_IMPACT'];
-const PHASE_LABEL = {ONGOING:'Durante la alerta',EARLY:'Preparación',MINUS_12:'Fase -12 horas',MINUS_2:'Fase -2 horas',POST_IMPACT:'Post-impacto'};
+const PHASES = ['PREP','ONGOING','EARLY','MINUS_12','MINUS_2','POST_IMPACT'];
+const PHASE_LABEL = {PREP:'Preparación de tu zona',ONGOING:'Durante la alerta',EARLY:'Preparación',MINUS_12:'Fase -12 horas',MINUS_2:'Fase -2 horas',POST_IMPACT:'Post-impacto'};
 const REGIONS = {
   'sw-guerrero': {name:'Suroeste (Acapulco, Guerrero)', box:[-106,14,-96,20]},
   'ne-tamaulipas-nl': {name:'Noreste (Tamaulipas y Monterrey)', box:[-101.5,22,-93,28]},
@@ -243,7 +251,7 @@ const isUnlocked=(s,alert,now)=>now>=unlockAt(s.phase,alert.impact);
 const load=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}};
 const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 const state={
-  tab:'home', planFilter:null, now:Date.now(), loading:true, real:[],
+  tab:'home', planFilter:null, planSel:null, now:Date.now(), loading:true, real:[],
   region:load('region','sw-guerrero'),
   profile:load('profile',{groundFloor:false,hasChildren:false,hasElderly:false,hasPets:false}),
   zoneHigh:load('zoneHigh',false),
@@ -254,8 +262,8 @@ const state={
 /* ===== NASA EONET (espejo de NasaEonetSource.kt) ===== */
 function stormSeverity(w){ return w==null?'YELLOW': w<34?'GREEN': w<64?'YELLOW': w<96?'ORANGE':'RED'; }
 function firstCoord(c){ let n=c; while(Array.isArray(n)&&Array.isArray(n[0])) n=n[0]; return Array.isArray(n)&&n.length>=2?n:null; }
-function parseEonet(json, regionId, now){
-  const [x0,y0,x1,y1]=REGIONS[regionId].box, out=[];
+function parseEonet(json, box, now){
+  const [x0,y0,x1,y1]=box, out=[];
   for(const ev of json.events||[]){
     const cat=ev.categories&&ev.categories[0]&&ev.categories[0].id;
     const hazard = cat==='severeStorms'?'HURRICANE': cat==='floods'?'FLOOD':null; if(!hazard) continue;
@@ -272,10 +280,10 @@ function parseEonet(json, regionId, now){
 }
 async function refreshReal(){
   state.loading=true; render();
-  const [x0,y0,x1,y1]=REGIONS[state.region].box;
+  const box=scopeBox(), [x0,y0,x1,y1]=box;
   try{
     const r=await fetch(`https://eonet.gsfc.nasa.gov/api/v3/events?status=open&category=severeStorms,floods&bbox=${x0},${y1},${x1},${y0}`);
-    state.real = r.ok ? parseEonet(await r.json(), state.region, Date.now()) : [];
+    state.real = r.ok ? parseEonet(await r.json(), box, Date.now()) : [];
   }catch(e){ state.real=[]; }
   state.loading=false; state.now=Date.now(); render();
 }
@@ -330,8 +338,11 @@ const clamp01=x=>Math.min(1,Math.max(0,x));
 function hours(ms){ if(ms<=0) return ['0','h']; const h=ms/HOUR; return h<1?[String(Math.round(ms/MIN)),'min']:[h>=10?String(Math.round(h)):h.toFixed(1),'h']; }
 
 function header(){
-  return `<div class="top"><div class="sel"><select onchange="setRegion(this.value)">${Object.entries(REGIONS).map(([k,v])=>
-    `<option value="${k}" ${k===state.region?'selected':''}>${esc(v.name.split(' (')[0])}</option>`).join('')}</select></div>
+  const gps=!!(state.zone&&state.zone.mode==='gps'), here=state.zone&&state.zone.municipio;
+  const sel=gps?'loc':state.region;
+  return `<div class="top"><div class="sel"><select onchange="setRegion(this.value)">
+    <option value="loc" ${sel==='loc'?'selected':''}>📍 ${esc(here?state.zone.municipio:'Mi ubicación')}</option>
+    ${Object.entries(REGIONS).map(([k,v])=>`<option value="${k}" ${k===sel?'selected':''}>${esc(v.name.split(' (')[0])}</option>`).join('')}</select></div>
     <button class="fab" onclick="go('settings')" aria-label="Simular alerta">+</button></div>`;
 }
 const scene=(label,color,fn)=>`<button class="scene" style="background:${color}" onclick="${fn}">${label}</button>`;
@@ -345,6 +356,10 @@ const GRADE_COLOR={'Muy bajo':'#22B07D','Bajo':'#22B07D','Medio':'#E5A100','Alto
 const HZ_ICON={FLOOD:'🌊',HURRICANE:'🌀',EXTREME_HEAT:'🌡️',WATER_SCARCITY:'💧'};
 const HZ_SHORT={FLOOD:'Inundación',HURRICANE:'Ciclones',EXTREME_HEAT:'Calor',WATER_SCARCITY:'Sequía'};
 const REGION_REF={'sw-guerrero':[16.86,-99.88],'ne-tamaulipas-nl':[25.67,-100.31]};
+/* El lugar que usa toda la app: tu ubicación si la tienes; si no, la región piloto elegida. */
+const placeName=()=>state.zone&&state.zone.municipio?`${state.zone.municipio}${state.zone.estado?', '+state.zone.estado:''}`:REGIONS[state.region].name;
+const SCOPE_DEG=2.5;   // ~275 km alrededor de ti para las alertas de NASA
+function scopeBox(){ return state.loc?[state.loc.lon-SCOPE_DEG,state.loc.lat-SCOPE_DEG,state.loc.lon+SCOPE_DEG,state.loc.lat+SCOPE_DEG]:REGIONS[state.region].box; }
 
 /* Una zona de peligro alto sube un nivel la severidad efectiva del plan (misma regla que el motor). */
 function zoneHighFor(hazard){
@@ -359,7 +374,7 @@ function locate(){
     e=>{ state.zoneStatus=e.code===1?'denied':'error'; render(); },
     {enableHighAccuracy:false,timeout:15000,maximumAge:600000});
 }
-function useRegionRef(){ const c=REGION_REF[state.region]; state.zoneStatus='locating'; render(); fetchZone(c[0],c[1],'region'); }
+function useRegionRef(){ const c=REGION_REF[state.region]; state.loc=null; save('loc',null); state.zoneStatus='locating'; render(); fetchZone(c[0],c[1],'region'); }
 async function fetchZone(lat,lon,mode){
   try{
     // POST: las coordenadas van en el cuerpo y no en la URL.
@@ -369,16 +384,61 @@ async function fetchZone(lat,lon,mode){
     const d=await r.json();
     state.zone={municipio:d.municipio,estado:d.estado,hazards:d.hazards,mode,partial:!!d.partial}; save('zone',state.zone); state.zoneStatus=null;
     state.loc=mode==='gps'?{lat:Math.round(lat*100)/100,lon:Math.round(lon*100)/100}:null; save('loc',state.loc);
-    // Si cae dentro de una región piloto, se cambia sola: el usuario no tiene que elegirla.
-    for(const [k,v] of Object.entries(REGIONS)){
-      const [x0,y0,x1,y1]=v.box;
-      if(mode==='gps'&&lon>=x0&&lon<=x1&&lat>=y0&&lat<=y1&&state.region!==k){ state.region=k; save('region',k); refreshReal(); refreshForecast(); break; }
-    }
   }catch(e){ state.zoneStatus='error'; }
   render();
-  if(state.zone&&state.zoneStatus===null) refreshNews();   // el servidor marca qué comunicados nombran tu municipio
+  // Todo lo que depende del lugar se vuelve a pedir con la ubicación: noticias (el servidor marca las que nombran tu municipio), alertas y pronóstico.
+  if(state.zone&&state.zoneStatus===null){ refreshNews(); refreshReal(); refreshForecast(); }
 }
-function clearZone(){ state.zone=null; state.zoneStatus=null; state.loc=null; save('zone',null); save('loc',null); render(); refreshNews(); }
+function clearZone(){ state.zone=null; state.zoneStatus=null; state.loc=null; save('zone',null); save('loc',null); render(); refreshNews(); refreshReal(); refreshForecast(); }
+
+/* ===== Plan de tu zona: preparación según el grado de peligro de tu municipio (sin necesidad de una alerta activa) ===== */
+const GRADE_NAMES=['Muy bajo','Bajo','Medio','Alto','Muy alto'];
+function gradeScore(hz){
+  const g=state.zone&&state.zone.hazards&&state.zone.hazards[hz]; if(!g||!g.grade) return null;
+  return typeof g.score==='number'?g.score:GRADE_NAMES.indexOf(g.grade);
+}
+const LEVEL_LABEL={1:'Kit básico',2:'Preparación básica',3:'Preparación reforzada',4:'Preparación máxima'};
+function zoneLevel(){ return Math.max(0,...Object.keys(HAZARDS).map(h=>gradeScore(h)==null?0:gradeScore(h))); }
+function zonePlan(){
+  if(!state.zone) return null;
+  const steps=[], seen=new Set();
+  const add=(st,hz,score,gap)=>{ if(seen.has(st.id)) return; seen.add(st.id); steps.push({...st,hz,score,gap,phase:'PREP'}); };
+  for(const hz of Object.keys(HAZARDS)){
+    const sc=gradeScore(hz); if(sc==null||sc<1) continue;
+    const sevIdx=sc>=3?2:sc===2?1:0;      // Bajo→verde, Medio→amarilla, Alto y Muy alto→naranja (la roja es solo para alertas reales)
+    ZONE_Q.filter(q=>q.hz===hz&&sc>=q.min&&state.profile.answers[q.id]===q.gap).forEach(q=>add({...q.step,id:'q-'+q.id,pri:1},hz,sc,true));
+    RULES.filter(r=>r.hz.includes(hz)&&r.sev<=sevIdx&&!r.post&&r.step.id!=='charge'&&(!r.when||r.when(state.profile))).forEach(r=>add(r.step,hz,sc,false));
+    ZONE_EXTRA.filter(x=>x.hz===hz&&sc>=x.min).forEach(x=>add(x.step,hz,sc,false));
+  }
+  const top=zoneLevel();
+  ZONE_EXTRA.filter(x=>!x.hz&&top>=x.min).forEach(x=>add(x.step,null,top,false));
+  if(!steps.length) return null;
+  steps.sort((a,b)=>(b.gap-a.gap)||(b.score-a.score)||a.pri-b.pri);
+  return {alert:{id:'zone',hazard:null,severity:'GREEN',issued:state.now,impact:null,simulated:false,zonePlan:true,headline:'Plan de preparación de '+placeName(),source:'Atlas Nacional de Riesgos'},steps};
+}
+/* Preguntas que aplican a tu zona: solo las de amenazas con peligro suficiente en tu municipio */
+const zoneQuestions=()=>state.zone?ZONE_Q.filter(q=>{ const sc=gradeScore(q.hz); return sc!=null&&sc>=q.min; }):[];
+function questionRow(q){
+  const a=state.profile.answers[q.id];
+  return `<div class="q"><div class="qt">${HZ_ICON[q.hz]} ${esc(q.q)}</div><div class="yn">
+    <button class="${a==='yes'?'on':''}" onclick="setAnswer('${q.id}','yes')">Sí</button><button class="${a==='no'?'on':''}" onclick="setAnswer('${q.id}','no')">No</button></div></div>`;
+}
+function zoneQuestionsCard(max){
+  const open=zoneQuestions().filter(q=>!state.profile.answers[q.id]);
+  if(!open.length) return '';
+  const list=open.slice(0,max);
+  return `<div class="card"><b>Afina tu plan</b><div class="muted small" style="margin:4px 0 6px">Estas preguntas salen porque el peligro en ${esc(state.zone.municipio)} lo amerita. Cada carencia que nos digas agrega un paso a tu plan.</div>
+    ${list.map(questionRow).join('')}${open.length>list.length?`<button class="btn ghost" style="padding-left:0;margin-top:4px" onclick="go('profile')">Faltan ${open.length-list.length} más en Perfil</button>`:''}</div>`;
+}
+function zonePlanCard(){
+  const zp=zonePlan(); if(!zp) return '';
+  const d=zp.steps.filter(s=>isDone('zone',s.id)).length, n=zp.steps.length, next=zp.steps.find(s=>!isDone('zone',s.id)), lvl=zoneLevel();
+  return `<div class="card prot"><div class="row"><b style="flex:1;font-size:18px">Plan de tu zona</b>${pill(LEVEL_LABEL[lvl]||'',lvl>=3?'#E8261C':lvl===2?'#E5A100':'#22B07D')}</div>
+    <div class="muted small" style="margin:4px 0">Preparación según el peligro de ${esc(state.zone.municipio)}, sin esperar a una alerta.</div>
+    <div class="bar"><i style="width:${Math.round(d/n*100)}%"></i></div>
+    <div class="small">${d}/${n} pasos${next?` · Siguiente: <b>${esc(next.title)}</b>`:' · ¡Plan completo! 🎉'}</div>
+    <button class="btn" style="margin-top:12px" onclick="go('plan',null,'zone')">Ver mi plan</button></div>`+zoneQuestionsCard(3);
+}
 
 function zoneCard(){
   const z=state.zone, st=state.zoneStatus;
@@ -409,7 +469,10 @@ state.forecast={data:null,loading:true,error:false};
 async function refreshForecast(){
   state.forecast.loading=true; state.forecast.error=false; render();
   try{
-    const r=await fetch('/api/forecast?region='+encodeURIComponent(state.region)); if(!r.ok) throw new Error('HTTP '+r.status);
+    // Con ubicación detectada se pide por coordenadas (en el cuerpo del POST); si no, por la región elegida.
+    const r=state.loc?await fetch('/api/forecast',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lat:state.loc.lat,lon:state.loc.lon,name:state.zone&&state.zone.municipio||''})})
+      :await fetch('/api/forecast?region='+encodeURIComponent(state.region));
+    if(!r.ok) throw new Error('HTTP '+r.status);
     const d=await r.json(); if(!Array.isArray(d.days)||!d.days.length) throw new Error('sin datos'); state.forecast.data=d;
   }catch(e){ state.forecast.error=true; state.forecast.data=null; }
   state.forecast.loading=false; render();
@@ -500,14 +563,17 @@ function sameState(a,b){
   return x===y||x.startsWith(y+' de ')||y.startsWith(x+' de ')||(x==='mexico'&&y==='estado de mexico')||(y==='mexico'&&x==='estado de mexico');
 }
 function interest(){
-  const z=state.zone, states=z&&z.estado?[z.estado]:(REGION_STATES[state.region]||[]);
+  const z=state.zone, gps=!!(z&&z.mode==='gps'&&state.loc);
+  const states=z&&z.estado?[z.estado]:(REGION_STATES[state.region]||[]);
   const basins=Object.keys(BASIN_STATES).filter(b=>states.some(s=>BASIN_STATES[b].some(t=>sameState(s,t))));
-  return {states, basins:basins.length?basins:Object.keys(BASIN_STATES), muni:z&&z.municipio?fold(z.municipio).split(' de ')[0]:'', region:state.region};
+  // Una zona tierra adentro (p. ej. CDMX) no tiene costa: los avisos de cuenca no son suyos. Solo sin zona se muestran ambas cuencas.
+  return {states, basins:z&&z.estado?basins:(basins.length?basins:Object.keys(BASIN_STATES)), muni:z&&z.municipio?fold(z.municipio).split(' de ')[0]:'',
+    region:gps?null:state.region};   // con ubicación, la región piloto no cuenta: sus recuadros abarcan estados enteros (el de Guerrero incluye hasta la CDMX)
 }
 function inZone(i,z){
   const st=i.states||[];
   if(st.some(s=>z.states.some(t=>sameState(s,t)))) return true;          // menciona tu estado
-  if((i.regions||[]).includes(z.region)) return true;                    // evento dentro de tu región
+  if(z.region&&(i.regions||[]).includes(z.region)) return true;          // evento dentro de la región elegida (solo sin ubicación)
   if(z.muni.length>=4&&fold(i.title).includes(z.muni)) return true;      // menciona tu municipio
   return !st.length&&(i.basins||[]).some(b=>z.basins.includes(b));       // aviso de cuenca sin estados: aplica a la costa de tu zona
 }
@@ -520,13 +586,15 @@ function km(a,b){
   const h=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLon/2)**2;
   return 2*R*Math.asin(Math.sqrt(h));
 }
-const REGION_KM=250;                                      // "toda la región" para eventos con coordenadas
+const REGION_KM=250, AREAL_KM=600;                                      // "toda la región" para eventos con coordenadas
 const radiusNow=()=>state.loc?state.radius:'region';      // sin ubicación no hay radio
 function distTo(i){ return state.loc&&i.geo?km(state.loc,i.geo):null; }
 /* Qué noticias se muestran según el radio elegido */
 function visible(i,z){
   const r=radiusNow();
-  if(i.areal) return inZone(i,z);                         // ciclones y avisos de cuenca: abarcan cientos de km, se filtran por región
+  if(i.areal){                                            // ciclones y avisos de cuenca: abarcan cientos de km
+    const d=distTo(i); return d!=null?d<=AREAL_KM:inZone(i,z);
+  }
   if(i.geo){                                              // sismos, inundaciones: distancia real
     const d=distTo(i);
     if(d==null) return inZone(i,z);
@@ -537,7 +605,7 @@ function visible(i,z){
 
 function newsSection(){
   const n=state.news, z=interest(), r=radiusNow(), hasLoc=!!state.loc;
-  const where=state.zone&&state.zone.municipio?`${state.zone.municipio}${state.zone.estado?', '+state.zone.estado:''}`:z.states.join(' y ');
+  const where=state.zone&&state.zone.municipio?placeName():z.states.join(' y ');
   const scopeTxt=r==='region'?(z.basins.length===1?` · ${BASIN_LABEL[z.basins[0]]}`:''):` · a ${r} km de ti`;
   const kinds=[['all','Todas'],['proteccion-civil','Protección Civil'],['gobierno','Gobierno'],['usgs','Sismos'],['nasa','NASA'],['noaa','NOAA'],['gdacs','GDACS']];
   let h=`<div class="newshead" id="news"><h2>Noticias de tu zona</h2><button class="lnk" onclick="refreshNews()">Actualizar</button></div>
@@ -545,7 +613,7 @@ function newsSection(){
     <div class="rad">`+[[5,'5 km'],[10,'10 km'],[20,'20 km'],['region','Toda la región']].map(([v,l])=>
       `<button class="${r===v?'on':''}" ${!hasLoc&&v!=='region'?'disabled':''} onclick="setRadius('${v}')">${l}</button>`).join('')+`</div>`;
   h+=!hasLoc?`<div class="muted small" style="margin:-4px 0 10px">Para usar 5, 10 o 20 km necesitamos tu ubicación: pulsa <b>Usar mi ubicación</b> en la tarjeta de tu zona.</div>`
-    :r!=='region'?`<div class="muted small" style="margin:-4px 0 10px">Con radio: sismos e inundaciones por distancia real; comunicados solo si nombran tu municipio; ciclones según tu región.</div>`:'';
+    :r!=='region'?`<div class="muted small" style="margin:-4px 0 10px">Con radio: sismos e inundaciones por distancia real; comunicados solo si nombran tu municipio; ciclones a menos de 600 km.</div>`:'';
   h+=`<div class="tabs sm">`+kinds.map(([k,l])=>`<button class="${n.filter===k?'on':''}" onclick="setNewsFilter('${k}')">${l}</button>`).join('')+`</div>`;
   if(n.loading&&!n.items.length) return h+`<div class="card muted">Cargando noticias de fuentes oficiales…</div>`;
   if(n.error&&!n.items.length) return h+`<div class="card muted">${n.error} <button class="btn ghost" onclick="refreshNews()">Reintentar</button></div>`;
@@ -574,7 +642,7 @@ function home(){
   const items=activeAlerts(), t=items[0];
   let h=header();
   if(!t){
-    h+=`<div class="calm"><div class="muted">${esc(REGIONS[state.region].name)}</div>
+    h+=`<div class="calm"><div class="muted">${esc(placeName())}</div>
       <div class="big">Todo en calma</div>
       <div class="stats3"><div><b>0</b><span>Alertas activas</span></div><div><b>NASA</b><span>Fuente de datos</span></div>
       <div><b style="color:${state.loading?'#FF9D00':'#22B07D'}">${state.loading?'…':'OK'}</b><span>${state.loading?'Buscando':'Sin riesgo'}</span></div></div></div>
@@ -582,8 +650,9 @@ function home(){
       <div class="two"><div class="card"><div class="ttl">Prepárate</div><div class="val">72<small> h</small></div><div class="muted small mini">Kit de emergencia familiar para tres días.</div></div>
       <div class="card"><div class="ttl">Ruta segura</div><div class="val">1<small> plan</small></div><div class="muted small mini">Ubica tu refugio y tu ruta a zona alta.</div></div></div>`;
     h+=zoneCard();
-  h+=forecastSection();
-  h+=newsSection();
+    h+=zonePlanCard();
+    h+=forecastSection();
+    h+=newsSection();
     return h;
   }
   const a=t.alert, steps=t.steps, total=Math.max(1,steps.length), done=doneCount(t);
@@ -604,7 +673,7 @@ function home(){
         <div><div class="lab"><span class="dot" style="background:#FFB400"></span>Ahora</div><div class="num">${udone}</div><div class="unit">/${unl.length} activos</div></div>
         <div><div class="lab"><span class="dot" style="background:#2F7BFF"></span>${tLabel}</div><div class="num">${tn}</div><div class="unit">${tu}</div></div>
       </div><div class="strip">${stripHtml}</div></div>
-    <div class="scenes">${scene('Siguiente acción',"#22B07D","go('plan',null)")}${scene('Ver plan',"#3A94D0","go('plan',null)")}${scene('Simular',"#6A55D3","go('settings')")}${scene('Alertas',"#FF5B1F","go('alerts')")}${scene('Noticias',"#E8261C","document.getElementById('news').scrollIntoView({behavior:'smooth'})")}</div>
+    <div class="scenes">${scene('Siguiente acción',"#22B07D","go('plan',null,'first')")}${scene('Ver plan',"#3A94D0","go('plan',null,'first')")}${scene('Simular',"#6A55D3","go('settings')")}${scene('Alertas',"#FF5B1F","go('alerts')")}${scene('Noticias',"#E8261C","document.getElementById('news').scrollIntoView({behavior:'smooth'})")}</div>
     <div class="card mods">`+Object.keys(CATS).map(c=>{
       const st=steps.filter(s=>s.cat===c), d=st.filter(s=>isDone(a.id,s.id)).length;
       return `<button onclick="go('plan','${c}')"><div class="ic" style="background:${CAT_COLOR[c]}22">${EMO[c]}<span class="badge" style="color:${CAT_COLOR[c]}">${d}/${st.length}</span></div>${CAT_SHORT[c]}</button>`;
@@ -617,17 +686,27 @@ function home(){
       <div class="card"><div class="ttl">Por hacer ahora</div><div class="val">${rem}<small> min</small></div>
         <div class="mini row" style="gap:0"><svg width="84" height="64" viewBox="0 0 84 64"><circle cx="42" cy="20" r="18" fill="#FF8A2A"/><circle cx="25" cy="42" r="18" fill="#8B5CF6"/><circle cx="59" cy="42" r="18" fill="#2CC9B5"/></svg></div></div></div>`;
   h+=zoneCard();
+  h+=zonePlanCard();
   h+=forecastSection();
   h+=newsSection();
   return h;
 }
 
 function plan(){
-  const items=activeAlerts();
-  let h=header()+`<div class="tabs"><button class="${!state.planFilter?'on':''}" onclick="go('plan',null)">Todos</button>`+
+  const items=activeAlerts(), zp=zonePlan(), plans=[...items,...(zp?[zp]:[])];
+  let h=header();
+  if(!plans.length) return h+`<div class="card muted">Sin alertas activas ni plan de zona. ${state.zone?'El peligro de tu municipio es muy bajo en las cuatro amenazas.':'Detecta tu zona en Inicio para ver tu plan de preparación, o pulsa + para simular una alerta.'}</div>`+(state.zone?'':`<button class="btn" onclick="go('home');locate()">Detectar mi zona</button>`);
+  const sel=plans.find(p=>p.alert.id===state.planSel)||plans[0], a=sel.alert, isZone=!!a.zonePlan;
+  if(plans.length>1) h+=`<div class="chips">`+plans.map(p=>`<button class="${p===sel?'on':''}" onclick="go('plan',undefined,'${p.alert.id}')">${p.alert.zonePlan?'📍 Mi zona':(HZ_ICON[p.alert.hazard]||'')+' '+esc(HAZARDS[p.alert.hazard].split(' / ')[0])}</button>`).join('')+`</div>`;
+  h+=`<div class="tabs"><button class="${!state.planFilter?'on':''}" onclick="go('plan',null)">Todos</button>`+
     Object.keys(CATS).map(c=>`<button class="${state.planFilter===c?'on':''}" onclick="go('plan','${c}')">${CAT_SHORT[c]}</button>`).join('')+`</div>`;
-  if(!items.length) return h+`<div class="card muted">Sin alertas activas. Pulsa + para simular una y ver el plan completo.</div>`;
-  const a=items[0].alert, steps=items[0].steps.filter(s=>!state.planFilter||s.cat===state.planFilter);
+  if(isZone){
+    const chips=Object.keys(HZ_SHORT).map(k=>{ const g=state.zone.hazards&&state.zone.hazards[k]&&state.zone.hazards[k].grade; return pill(`${HZ_ICON[k]} ${HZ_SHORT[k]}: ${g||'sin dato'}`,g?GRADE_COLOR[g]:'#8A90A0'); }).join(' ');
+    h+=`<div class="card"><div class="muted small">Plan de preparación · ${esc(placeName())}</div><div style="font-size:19px;font-weight:700;margin:2px 0 10px">${LEVEL_LABEL[zoneLevel()]||''}</div><div class="fctags" style="margin-top:0">${chips}</div>
+      <div class="muted small" style="margin-top:10px">Cuanto más alto el peligro de tu municipio, más pasos y más estrictos. Se ajusta a tu hogar (Perfil) y a tus respuestas.</div></div>`+zoneQuestionsCard(3);
+  }
+  const steps=sel.steps.filter(s=>!state.planFilter||s.cat===state.planFilter);
+  if(!steps.length) return h+`<div class="card muted">No hay pasos en esta categoría.</div>`;
   h+=`<div class="devs">`;
   PHASES.filter(p=>steps.some(s=>s.phase===p)).forEach(p=>{
     const group=steps.filter(s=>s.phase===p);
@@ -638,9 +717,9 @@ function plan(){
         <div class="tp"><div class="ic" style="background:${c}22">${EMO[s.cat]}</div>
           <button class="pw ${d?'on':unl?'':'lock'}" aria-label="Marcar como hecho" onclick="event.stopPropagation();${unl?`toggle('${a.id}','${s.id}')`:''}">${CHECK}</button></div>
         <div class="nm">${esc(s.title)}</div>
-        ${open?`<div class="det">${esc(s.detail)}<div class="muted small" style="margin-top:8px">≈ ${s.min} min · ${CATS[s.cat]}</div>
+        ${open?`<div class="det">${esc(s.detail)}<div class="muted small" style="margin-top:8px">≈ ${s.min} min · ${CATS[s.cat]}${s.hz?' · '+HZ_SHORT[s.hz]:''}${s.gap?' · según tus respuestas':''}</div>
           ${s.product?`<div class="shop">🛒 Opcional: ${esc(s.product.name)} · $${s.product.price} <span class="muted">(datos simulados)</span></div>`:''}</div>`:''}
-        <div class="bt"><span>${CAT_SHORT[s.cat]}${unl?'':` <i>· en ${fmt(unlockAt(s.phase,a.impact)-state.now)}</i>`}</span>${CHEV}</div></div>`;
+        <div class="bt"><span>${CAT_SHORT[s.cat]}${s.hz?' · '+HZ_ICON[s.hz]:''}${unl?'':` <i>· en ${fmt(unlockAt(s.phase,a.impact)-state.now)}</i>`}</span>${CHEV}</div></div>`;
     });
   });
   return h+`</div>`;
@@ -655,7 +734,7 @@ function render(){
 
 function alerts(){
   const items=activeAlerts();
-  let h=`<h1>Alertas</h1><div class="muted" style="margin-bottom:14px">${esc(REGIONS[state.region].name)}</div>`;
+  let h=`<h1>Alertas</h1><div class="muted" style="margin-bottom:14px">${esc(placeName())}</div>`;
   if(!items.length) return h+`<div class="card muted">${state.loading?'Buscando…':'Sin alertas activas.'}</div>`;
   return h+items.map(({alert:a})=>`<div class="card"><div class="row"><i style="width:14px;height:14px;border-radius:50%;background:${SEV_ACCENT[a.severity]}"></i>
     <b style="flex:1">${HAZARDS[a.hazard]}</b><span style="color:${SEV_ACCENT[a.severity]};font-weight:700">${SEV_LABEL[a.severity]}</span></div>
@@ -760,9 +839,36 @@ function exportData(){
 /* ===== Perfil: preguntas ampliadas ===== */
 const HOME_KIT=[['water','Agua: 3 litros por persona al día, para 3 días'],['food','Comida enlatada o que no necesita refrigeración'],['flashlight','Linterna con pilas de repuesto'],
   ['radio','Radio de pilas o de manivela'],['firstAid','Botiquín de primeros auxilios'],['docs','Copias de documentos en bolsa impermeable'],['powerBank','Batería externa para el celular'],['cash','Efectivo en billetes pequeños']];
+/* Preguntas que se hacen SOLO si el peligro de tu municipio es de ese grado (min: 2 Medio, 3 Alto, 4 Muy alto) o mayor.
+   Si la respuesta es la de `gap`, el plan agrega el paso correspondiente. */
+const ZONE_Q=[
+ {id:'f-route',hz:'FLOOD',min:2,gap:'no',q:'¿Conoces tu ruta a una zona alta o a un refugio, por si tu calle se inunda?',step:{title:'Define tu ruta a zona alta o refugio',detail:'Recórrela con tu familia y elige una alterna: las calles bajas son las primeras en anegarse.',min:25,hb:24,cat:'SHELTER'}},
+ {id:'f-docs',hz:'FLOOD',min:2,gap:'no',q:'¿Tus documentos importantes están en una bolsa impermeable o en un lugar alto?',step:{title:'Protege tus documentos del agua',detail:'Identificaciones, escrituras, póliza y recetas en bolsa hermética, en el nivel más alto de la casa.',min:15,hb:24,cat:'ASSETS'}},
+ {id:'f-flooded',hz:'FLOOD',min:3,gap:'yes',q:'¿Tu calle o colonia se ha inundado antes?',step:{title:'Prepárate para que vuelva a pasar',detail:'Si ya se inundó, volverá: eleva electrodomésticos, ten costales o barreras listas y apunta quién vive en pisos altos cerca de ti.',min:40,hb:24,cat:'ASSETS'}},
+ {id:'f-power',hz:'FLOOD',min:3,gap:'no',q:'¿Sabes cortar la luz y el gas de tu casa rápidamente?',step:{title:'Aprende a cortar luz y gas',detail:'Ubica el interruptor general y la llave del gas; todos los adultos de la casa deben saber usarlos.',min:10,hb:12,cat:'SAFETY'}},
+ {id:'h-windows',hz:'HURRICANE',min:2,gap:'no',q:'¿Tus ventanas tienen protección (tormenteras, madera o contraventanas)?',step:{title:'Consigue protección para tus ventanas',detail:'Tormenteras o madera a la medida: es mejor tenerlas antes de la temporada, cuando aún hay existencias.',min:60,hb:48,cat:'ASSETS'}},
+ {id:'h-shelter',hz:'HURRICANE',min:2,gap:'no',q:'¿Sabes cuál es tu refugio temporal más cercano?',step:{title:'Ubica tu refugio temporal',detail:'Pregunta a Protección Civil de tu municipio cuál te corresponde y si admite mascotas.',min:20,hb:48,cat:'SHELTER'}},
+ {id:'h-roof',hz:'HURRICANE',min:3,gap:'yes',q:'¿Tu techo es de lámina o de material ligero?',step:{title:'Refuerza o asegura tu techo',detail:'Revisa anclajes y tornillos de láminas y tinacos; un techo ligero es lo primero que arrancan los vientos fuertes.',min:60,hb:48,cat:'ASSETS'}},
+ {id:'h-radio',hz:'HURRICANE',min:3,gap:'no',q:'¿Tienes un radio de pilas o de manivela para seguir los avisos si falla la luz?',step:{title:'Consigue un radio de pilas o manivela',detail:'Si se cae la luz y la red celular, será tu fuente de avisos oficiales.',min:15,hb:48,cat:'SAFETY'}},
+ {id:'e-cool',hz:'EXTREME_HEAT',min:2,gap:'no',q:'¿Tu vivienda tiene ventilador o aire acondicionado?',step:{title:'Planea dónde refrescarte',detail:'Sin ventilación, identifica un lugar con clima cerca (biblioteca, centro comercial o comunitario) para las horas de mayor calor.',min:20,hb:0,cat:'SHELTER'}},
+ {id:'e-health',hz:'EXTREME_HEAT',min:2,gap:'yes',q:'¿Alguien en casa tiene una enfermedad crónica o toma medicamentos que afectan la hidratación?',step:{title:'Consulta cómo cuidarte en días de calor',detail:'Pregunta a su médico cómo ajustar líquidos y medicamentos con calor extremo, y vigílalo más seguido.',min:15,hb:0,cat:'SAFETY'}},
+ {id:'e-outdoor',hz:'EXTREME_HEAT',min:3,gap:'yes',q:'¿Alguien trabaja o estudia al aire libre entre las 11:00 y las 17:00?',step:{title:'Reorganiza las actividades al sol',detail:'Mueve lo que puedas a la mañana o la tarde, haz pausas a la sombra cada hora y lleva agua.',min:10,hb:0,cat:'SAFETY'}},
+ {id:'w-tank',hz:'WATER_SCARCITY',min:2,gap:'no',q:'¿Tienes tinaco, cisterna o recipientes para guardar agua?',step:{title:'Consigue dónde almacenar agua',detail:'Bidones o recipientes con tapa, limpios, para al menos 3 L por persona al día.',min:30,hb:0,cat:'ASSETS'}},
+ {id:'w-reserve',hz:'WATER_SCARCITY',min:2,gap:'no',q:'¿Tu reserva de agua alcanza para 3 días?',step:{title:'Completa tu reserva de 3 días',detail:'3 L por persona al día, más lo de tus mascotas. Renueva el agua guardada cada mes.',min:30,hb:0,cat:'ASSETS'}},
+ {id:'w-tandeo',hz:'WATER_SCARCITY',min:3,gap:'yes',q:'¿Tu colonia recibe agua por tandeo o con pipas?',step:{title:'Anota horarios de tandeo y de pipas',detail:'Pregunta al organismo operador de agua de tu municipio por los horarios y cómo solicitar una pipa; ten recipientes listos para esos días.',min:20,hb:0,cat:'SHELTER'}},
+];
+/* Pasos extra que solo aparecen cuando el peligro del municipio es alto (min 3) o muy alto (4). */
+const ZONE_EXTRA=[
+ {hz:'FLOOD',min:3,step:{id:'x-flood-drill',title:'Haz un simulacro de salida a zona alta',detail:'Una vez al año, en familia y con mochila de emergencia: así nadie improvisa cuando suba el agua.',pri:2,min:30,hb:0,cat:'SHELTER'}},
+ {hz:'HURRICANE',min:3,step:{id:'x-hur-comm',title:'Acuerda cómo se comunican si cae la red',detail:'Un contacto fuera de la zona, un punto de reunión y quién recoge a niñas y niños.',pri:2,min:15,hb:0,cat:'SAFETY'}},
+ {hz:'HURRICANE',min:4,step:{id:'x-hur-insure',title:'Revisa tu seguro y tus bienes',detail:'Fotografía tus bienes y confirma qué cubre tu póliza antes de la temporada.',pri:3,min:40,hb:0,cat:'ASSETS'}},
+ {hz:'EXTREME_HEAT',min:3,step:{id:'x-heat-signs',title:'Aprende las señales del golpe de calor',detail:'Piel caliente y seca, confusión, mareo o vómito: sombra, agua y ayuda médica de inmediato.',pri:2,min:10,hb:0,cat:'SAFETY'}},
+ {hz:'WATER_SCARCITY',min:4,step:{id:'x-ws-7d',title:'Amplía tu reserva a 7 días',detail:'En zonas de sequía severa conviene una semana de agua para beber y cocinar.',pri:2,min:40,hb:0,cat:'ASSETS'}},
+ {hz:null,min:3,step:{id:'x-alerts',title:'Sigue los avisos oficiales de tu zona',detail:'Protección Civil de tu estado y municipio, Conagua y el CENAPRED. Evita compartir rumores.',pri:3,min:10,hb:0,cat:'SAFETY'}},
+];
 const defaultProfile=()=>({groundFloor:false,hasChildren:false,hasElderly:false,hasPets:false,
   adults:1,children:0,elderly:0,pets:0,mobility:false,housing:'casa',floor:'0',hasCar:false,meeting:'',
-  contacts:[{name:'',phone:''},{name:'',phone:''},{name:'',phone:''}],kit:{}});
+  contacts:[{name:'',phone:''},{name:'',phone:''},{name:'',phone:''}],kit:{},answers:{}});
 const txt=(v,n)=>typeof v==='string'?v.replace(/[<>]/g,'').slice(0,n):'';
 const cnt=(v,max)=>Math.max(0,Math.min(max,Math.floor(Number(v))||0));
 function cleanProfile(p){
@@ -773,6 +879,7 @@ function cleanProfile(p){
   o.mobility=!!o.mobility; o.hasCar=!!o.hasCar;
   o.contacts=d.contacts.map((_,i)=>({name:txt(p.contacts&&p.contacts[i]&&p.contacts[i].name,60),phone:txt(p.contacts&&p.contacts[i]&&p.contacts[i].phone,20).replace(/[^\d+\s()-]/g,'')}));
   o.kit={}; HOME_KIT.forEach(([k])=>{ if(p.kit&&p.kit[k]) o.kit[k]=true; });
+  o.answers={}; ZONE_Q.forEach(q=>{ const a=p.answers&&p.answers[q.id]; if(a==='yes'||a==='no') o.answers[q.id]=a; });
   return derive(o);
 }
 // El motor de reglas del plan usa estas cuatro banderas: se calculan a partir de las respuestas.
@@ -784,6 +891,7 @@ function setField(k,v,rerender){
   derive(state.profile); save('profile',state.profile); queueSync(); if(rerender) render();
 }
 function setContact(i,f,v){ state.profile.contacts[i][f]=f==='phone'?txt(v,20).replace(/[^\d+\s()-]/g,''):txt(v,60); save('profile',state.profile); queueSync(); }
+function setAnswer(id,v){ const a=state.profile.answers; if(a[id]===v) delete a[id]; else a[id]=v; save('profile',state.profile); queueSync(); render(); }
 function setKit(k,v){ if(v) state.profile.kit[k]=true; else delete state.profile.kit[k]; save('profile',state.profile); queueSync(); render(); }
 
 const shield=(ok,t)=>`<div class="row" style="gap:10px;align-items:flex-start;margin:8px 0"><span style="font-size:18px">${ok?'🔒':'⚠️'}</span><span class="small" style="flex:1">${t}</span></div>`;
@@ -822,6 +930,14 @@ function accountCard(){
     <div class="row" style="gap:8px;margin-top:10px"><button class="btn" ${AUTH.busy?'disabled':''} onclick="submitAuth()">${AUTH.busy?'Espera…':up?'Crear cuenta':'Entrar'}</button>
     <button class="btn ghost" onclick="setAuthMode('${up?'in':'up'}')">${up?'Ya tengo cuenta':'Crear cuenta'}</button></div></div>`;
 }
+function profileZoneQuestions(){
+  if(!state.zone) return `<div class="card"><b>Preguntas según el riesgo de tu zona</b><p class="muted small">Detecta tu zona y te preguntaremos solo lo que importa según el peligro de tu municipio (inundación, ciclones, calor o sequía).</p><button class="btn" onclick="go('home');locate()">Detectar mi zona</button></div>`;
+  const qs=zoneQuestions();
+  if(!qs.length) return `<div class="card"><b>Preguntas según el riesgo de tu zona</b><p class="muted small">El peligro en ${esc(state.zone.municipio)} es bajo en las cuatro amenazas: no necesitamos más datos.</p></div>`;
+  const n=qs.filter(q=>state.profile.answers[q.id]).length;
+  return `<div class="card"><div class="row"><b style="flex:1">Según el riesgo de ${esc(state.zone.municipio)}</b><span style="font-weight:700;color:var(--accent)">${n}/${qs.length}</span></div>
+    <div class="muted small" style="margin:4px 0 6px">Entre más alto el peligro de tu zona, más preguntas. Tus respuestas arman tu plan (pestaña Plan).</div>${qs.map(questionRow).join('')}</div>`;
+}
 function profile(){
   const p=state.profile, kitN=HOME_KIT.filter(([k])=>p.kit[k]).length, pct=Math.round(kitN/HOME_KIT.length*100);
   const num=(k,l,max)=>`<div class="fld half"><label>${l}</label><input type="number" inputmode="numeric" min="0" max="${max}" value="${p[k]}" onchange="setField('${k}',this.value)"></div>`;
@@ -829,6 +945,7 @@ function profile(){
   return `<h1>Perfil</h1>
   ${accountCard()}
   ${protectionPanel()}
+  ${profileZoneQuestions()}
   <div class="card"><b>Tu hogar</b><div class="muted small" style="margin-bottom:8px">Con esto el plan te pide justo lo que necesitas (por ejemplo, rutas lentas si hay personas mayores).</div>
     <div class="grid2">${num('adults','Personas adultas',20)}${num('children','Niñas y niños',20)}${num('elderly','Personas adultas mayores',20)}${num('pets','Mascotas',30)}</div>
     ${sw('mobility','Alguien tiene movilidad reducida')}</div>
@@ -852,9 +969,14 @@ function clearLocalData(){
 }
 
 /* ===== Acciones ===== */
-function go(tab,filter){ state.tab=tab; if(filter!==undefined) state.planFilter=filter; scrollTo(0,0); render(); }
+function go(tab,filter,sel){ state.tab=tab; if(filter!==undefined) state.planFilter=filter; if(sel!==undefined) state.planSel=sel; scrollTo(0,0); render(); }
 function toggle(aid,sid){ const k=aid+':'+sid; if(state.done[k]) delete state.done[k]; else state.done[k]=true; save('done',state.done); queueSync(); render(); }
-function setRegion(r){ state.region=r; save('region',r); refreshReal(); refreshForecast(); }
+function setRegion(r){
+  if(r==='loc'){ locate(); return; }
+  state.region=r; save('region',r);
+  if(state.zone&&state.zone.mode==='gps') useRegionRef();   // elegir una región pasa a usar su referencia, no tu ubicación
+  else{ refreshReal(); refreshForecast(); refreshNews(); }
+}
 function setZone(v){ state.zoneHigh=v; save('zoneHigh',v); }
 function startSim(){
   const hours=Math.max(0,Math.min(72,+document.getElementById('sd').value||0)), now=Date.now();
