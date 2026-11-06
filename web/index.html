@@ -962,6 +962,9 @@ function updateAd(){
   const box=document.getElementById('adbox'), show=!!(AUTH.ads&&isFree()&&currentView()!=='gate'&&currentView()!=='onboarding'&&(state.tab==='home'||state.tab==='profile'));
   box.style.display=show?'':'none'; document.body.classList.toggle('hasad',show);
   if(!show||adLoaded) return; adLoaded=true;
+  if(AUTH.ads.client==='demo'){   // ADSENSE_CLIENT=demo: recuadro de ejemplo para ver dónde saldría el anuncio (sin cargar nada de Google)
+    box.innerHTML=`<small>Publicidad (no personalizada)</small><div style="border:1px dashed var(--muted);border-radius:12px;padding:18px;text-align:center;color:var(--muted);font-size:13px">Aquí saldría un anuncio de Google AdSense<br>(modo demostración, solo plan gratuito)</div>`; return;
+  }
   box.innerHTML=`<small>Publicidad (no personalizada)</small><ins class="adsbygoogle" style="display:block" data-ad-client="${esc(AUTH.ads.client)}" data-ad-slot="${esc(AUTH.ads.slot)}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
   window.adsbygoogle=window.adsbygoogle||[]; window.adsbygoogle.requestNonPersonalizedAds=1;
   const s=document.createElement('script'); s.async=true; s.crossOrigin='anonymous'; s.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client='+encodeURIComponent(AUTH.ads.client);
