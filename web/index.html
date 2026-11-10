@@ -959,9 +959,14 @@ async function payWithGoogle(id){
 /* Anuncios: un solo recuadro fijo fuera de la app (no se recarga con cada render), solo en Inicio y Perfil y siempre no personalizados. */
 let adLoaded=false;
 function updateAd(){
-  const box=document.getElementById('adbox'), show=!!(AUTH.ads&&isFree()&&currentView()!=='gate'&&currentView()!=='onboarding'&&(state.tab==='home'||state.tab==='profile'));
+  const box=document.getElementById('adbox'), show=!!(AUTH.ads&&(isFree()||(AUTH.ads.client==='demo'&&!AUTH.cfg))&&currentView()!=='gate'&&currentView()!=='onboarding'&&(state.tab==='home'||state.tab==='profile'));
   box.style.display=show?'':'none'; document.body.classList.toggle('hasad',show);
-  if(!show||adLoaded) return; adLoaded=true;
+  if(!show){   // dice en la consola por qué no hay anuncio (solo cuando cambia el motivo)
+    const why=!AUTH.ads?'el servidor no tiene ADSENSE_CLIENT/ADSENSE_SLOT':!isFree()?'tu plan es '+planOf()+(AUTH.cfg?'':' (sin cuentas en el servidor: falta MONGODB_URI)'):!(state.tab==='home'||state.tab==='profile')?'solo salen en Inicio y Perfil':'pantalla de acceso o inicio';
+    if(why!==updateAd.last){ updateAd.last=why; console.info('[Kairos] sin anuncio:',why); }
+    return;
+  }
+  if(adLoaded) return; adLoaded=true;
   if(AUTH.ads.client==='demo'){   // ADSENSE_CLIENT=demo: recuadro de ejemplo para ver dónde saldría el anuncio (sin cargar nada de Google)
     box.innerHTML=`<small>Publicidad (no personalizada)</small><div style="border:1px dashed var(--muted);border-radius:12px;padding:18px;text-align:center;color:var(--muted);font-size:13px">Aquí saldría un anuncio de Google AdSense<br>(modo demostración, solo plan gratuito)</div>`; return;
   }

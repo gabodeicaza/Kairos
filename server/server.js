@@ -27,6 +27,17 @@ const readBody = (req, max) => new Promise((ok, fail) => {
 
 const send = (res, code, body, headers = {}) => { res.writeHead(code, { 'X-Content-Type-Options': 'nosniff', ...headers }); res.end(body); };
 
+// AdSense: ADSENSE_CLIENT=demo basta para ver el recuadro de ejemplo; en real hacen falta CLIENT y SLOT.
+const adsenseConfig = (env) => {
+  if (env.ADSENSE_CLIENT === 'demo') return { client: 'demo', slot: 'demo' };
+  return env.ADSENSE_CLIENT && env.ADSENSE_SLOT ? { client: env.ADSENSE_CLIENT, slot: env.ADSENSE_SLOT } : null;
+};
+const adsenseStatus = (env) => {
+  if (adsenseConfig(env)) return env.ADSENSE_CLIENT === 'demo' ? 'anuncios: modo demostración (Inicio y Perfil; sin cuentas se ve para todos, con cuentas solo en plan gratuito)' : 'anuncios: AdSense activo (plan gratuito)';
+  const falta = [!env.ADSENSE_CLIENT && 'ADSENSE_CLIENT', env.ADSENSE_CLIENT && !env.ADSENSE_SLOT && 'ADSENSE_SLOT'].filter(Boolean).join(', ');
+  return `anuncios: desactivados (falta ${falta})`;
+};
+
 http.createServer(async (req, res) => {
   const { pathname, searchParams } = new URL(req.url, 'http://localhost');
   // /api/hazards solo acepta POST y /api/news acepta POST además de GET: los datos de ubicación viajan en el cuerpo
@@ -49,7 +60,7 @@ http.createServer(async (req, res) => {
         maps: !accountsConfigured() && env.GOOGLE_MAPS_KEY ? { key: env.GOOGLE_MAPS_KEY } : null,   // clave de navegador: restríngela por sitio web en Google Cloud
         billing: billingMode(),
         push: pushConfigured() ? { publicKey: pushPublicKey() } : null,
-        adsense: env.ADSENSE_CLIENT && env.ADSENSE_SLOT ? { client: env.ADSENSE_CLIENT, slot: env.ADSENSE_SLOT } : null,
+        adsense: adsenseConfig(env),
         gpay: { env: env.GPAY_ENV === 'PRODUCTION' ? 'PRODUCTION' : 'TEST', merchantId: env.GPAY_MERCHANT_ID || null,
           gateway: env.GPAY_GATEWAY || null, gatewayMerchantId: env.GPAY_GATEWAY_MERCHANT_ID || null },
       }), { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -128,7 +139,9 @@ http.createServer(async (req, res) => {
       }
     }
     // Estático: se resuelve dentro de web/ y se rechaza cualquier ruta que se salga de ahí.
-    const rel = normalize(decodeURIComponent(pathname)).replace(/^([/\\])+/, '');
+    let decoded;
+    try { decoded = decodeURIComponent(pathname); } catch { return send(res, 400, 'Bad Request'); }
+    const rel = normalize(decoded).replace(/^([/\\])+/, '');
     const file = resolve(WEB_DIR, rel === '' ? 'index.html' : rel);
     if (file !== WEB_DIR && !file.startsWith(WEB_DIR + sep)) return send(res, 403, 'Forbidden');
     const body = await readFile(file);
@@ -138,5 +151,10 @@ http.createServer(async (req, res) => {
     console.error(e);
     return send(res, 500, 'Error interno');
   }
-}).listen(PORT, '0.0.0.0', () => { console.log(`Kairos escuchando en :${PORT}`); startPushLoop(getStore); });
+}).listen(PORT, '0.0.0.0', () => { 
+  console.log(`Kairos escuchando en :${PORT}`);
+  console.log(adsenseStatus(process.env));
+  if (!accountsConfigured()) console.log('cuentas: desactivadas (falta MONGODB_URI): todos tienen acceso Premium; el anuncio real no sale (solo el de demostración)');
+  startPushLoop(getStore);
+});
 

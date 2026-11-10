@@ -6,7 +6,8 @@
   "description": "Demo web de Kairos y API de noticias oficiales",
   "scripts": {
     "start": "node server/server.js",
-    "dev": "node --env-file=.env server/server.js"
+    "dev": "node --env-file=.env server/server.js",
+    "test": "node --test \"server/test/*.test.js\""
   },
   "engines": {
     "node": ">=18"
