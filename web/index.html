@@ -813,7 +813,7 @@ function render(){
   document.querySelector('nav').style.display=gated?'none':'';
   document.getElementById('nav').innerHTML=gated?'':(isSocio()?NAV_SOCIO:NAV).map(([k,l])=>`<button class="${state.tab===k?'on':''}" onclick="go('${k}')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[k]}</svg>${l}</button>`).join('');
-  if(view==='gate') mountGoogleButton(); else{ updateAd(); if(view==='map') mountMap(); if(view==='stats'&&!state.stats.data&&!state.stats.loading&&!state.stats.error) loadStats(); }
+  if(view==='gate') mountGoogleButton(); else{ updateAd(); if(view==='map') mountMap(); if(view==='stats'){ if(!state.stats.data&&!state.stats.loading&&!state.stats.error) loadStats(); else mountHeat(); } }
 }
 
 function alerts(){
@@ -1187,13 +1187,66 @@ function statsView(){
   if(st.error) return h+`<div class="note bad">${esc(st.error)}</div>`;
   if(!d) return h+`<div class="card muted">${st.loading?'Cargando…':'Sin datos.'}</div>`;
   h+=`<div class="muted small" style="margin-bottom:12px">Solo se muestran grupos de al menos ${d.minimoPorGrupo} personas que aceptaron participar. ${d.suprimidos.groups?`${d.suprimidos.groups} grupo(s) pequeño(s) ocultos por privacidad.`:''}</div>`;
-  if(!d.grupos.length) return h+`<div class="card muted">Todavía no hay grupos con suficientes personas para mostrar cifras sin identificar a nadie.</div>`;
+  if(!d.grupos.length) return h+`<div class="card muted">Todavía no hay grupos con suficientes personas para mostrar cifras sin identificar a nadie.<br><br>Cada zona necesita al menos ${d.minimoPorGrupo} personas que hayan aceptado participar en estadísticas y tengan una zona detectada. Personas con ubicación de ejemplo (demo) solo cuentan si el servidor tiene <b>STATS_INCLUDE_DEMO=1</b>; para pruebas puedes bajar el mínimo con <b>STATS_MIN_GROUP</b>.${d.sinZona?`<br><br>${d.sinZona} perfil(es) excluido(s) por no tener zona real.`:''}</div>`;
+  const top=d.grupos.filter(g=>g.indice!=null).sort((a,b)=>b.indice-a.indice)[0], carr={};
+  for(const g of d.grupos) for(const c of g.carencias.slice(0,3)) carr[c.hazard+' · '+c.label]=(carr[c.hazard+' · '+c.label]||0)+1;
+  const topCarr=Object.entries(carr).sort((a,b)=>b[1]-a[1])[0];
+  h+=`<div class="card"><div class="row" style="gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:90px"><div class="muted small">Personas</div><b style="font-size:24px">${d.personasVisibles}</b></div>
+      <div style="flex:1;min-width:90px"><div class="muted small">Zonas</div><b style="font-size:24px">${d.grupos.length}</b></div>
+      <div style="flex:1;min-width:120px"><div class="muted small">Más desprotegida</div><b style="font-size:16px">${top?esc(top.zona)+' ('+top.indice+')':'–'}</b></div></div>
+    ${topCarr?`<div class="small muted" style="margin-top:10px">Carencia que más se repite entre zonas: <b>${esc(topCarr[0])}</b></div>`:''}
+    <div class="row" style="margin-top:10px"><button class="btn ghost" onclick="exportStatsCsv()">Descargar datos (CSV)</button></div></div>
+    <div class="muted" style="margin:14px 4px 8px"><b>Mapa de calor</b> · índice de carencia (0 = bien preparados, 100 = muy desprotegidos)</div>${heatView()}
+    <div class="muted" style="margin:14px 4px 8px"><b>Detalle por zona</b></div>`;
   return h+d.grupos.map(g=>`<div class="card"><div class="row"><b style="flex:1;font-size:18px">${esc(g.zona)}</b>${pill(g.personas+' personas','#6A55D3')}</div>
     <div class="muted small" style="margin:10px 0 2px">Hogares</div>${barRow('Con niñas y niños',g.hogares.conNinos)}${barRow('Con personas mayores',g.hogares.conMayores)}${barRow('Con mascotas',g.hogares.conMascotas)}${barRow('Con movilidad reducida',g.hogares.movilidadReducida)}${barRow('En planta baja',g.hogares.plantaBaja)}
     <div class="muted small" style="margin:12px 0 2px">Preparación</div>${barRow('Kit de emergencia completo (promedio)',g.botiquinKitPromedioPct,'#22B07D')}
     <div class="small muted">Pasos del plan completados por persona: <b>${g.pasosPromedioDelPlan}</b></div>
     ${g.carencias.length?`<div class="muted small" style="margin:12px 0 2px">Carencias más reportadas (de quienes respondieron)</div>`+g.carencias.slice(0,6).map(c=>barRow(c.hazard+' · '+c.label+' ('+c.answered+')',c.pct,'#E8261C')).join(''):''}</div>`).join('')
     +`<div class="muted small" style="margin:4px 4px 16px">Generado ${new Date(d.generado).toLocaleString('es-MX')}. Las cifras reflejan a quienes usan Kairos, no a toda la población.</div>`;
+}
+/* Mapa de calor para socios: un círculo por estado, de verde a rojo según el índice de carencia. Con la clave de Google Maps se dibuja sobre el mapa; sin ella, como cuadrícula ordenada. */
+const heatColor=i=>`hsl(${Math.round(130-130*Math.max(0,Math.min(100,i))/100)} 75% 46%)`;
+const HEATMAP={el:null,map:null,shapes:[],info:null};
+function heatPoints(){ const d=state.stats.data; return d&&state.stats.level==='estado'?d.grupos.filter(g=>g.centro&&g.indice!=null):[]; }
+function heatView(){
+  const d=state.stats.data, gs=d.grupos.filter(g=>g.indice!=null).sort((a,b)=>b.indice-a.indice);
+  const legend=`<div class="legend"><span><i style="background:${heatColor(0)}"></i>Bajo</span><span><i style="background:${heatColor(50)}"></i>Medio</span><span><i style="background:${heatColor(100)}"></i>Alto</span></div>`;
+  if(!gs.length) return `<div class="card muted">Todavía no hay respuestas suficientes para calcular el índice.</div>`;
+  const tiles=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:10px">${gs.map(g=>`<div style="background:${heatColor(g.indice)};color:#fff;border-radius:14px;padding:10px"><div class="small" style="opacity:.9">${esc(g.zona)}</div><b style="font-size:22px">${g.indice}</b><div class="small" style="opacity:.9">${g.personas} personas</div></div>`).join('')}</div>`;
+  if(state.stats.level!=='estado') return `<div class="note">El mapa se dibuja por estado. Cambia a «Por estado» para verlo.</div>`+tiles+legend;
+  if(!AUTH.maps) return tiles+legend+`<div class="muted small">El mapa sobre Google Maps se activa cuando el servidor tiene GOOGLE_MAPS_KEY; mientras tanto se muestra como cuadrícula.</div>`;
+  return `<div id="heatslot" class="mapslot"></div>${legend}`;
+}
+async function mountHeat(){
+  const slot=document.getElementById('heatslot'); if(!slot||!AUTH.maps) return;
+  try{ await loadMaps(); }catch(e){ slot.innerHTML='<div class="muted small" style="padding:20px">No se pudo cargar Google Maps.</div>'; return; }
+  const again=document.getElementById('heatslot'); if(!again) return;
+  if(!HEATMAP.map){
+    HEATMAP.el=document.createElement('div'); HEATMAP.el.style.cssText='width:100%;height:100%';
+    HEATMAP.map=new google.maps.Map(HEATMAP.el,{center:{lat:23.6,lng:-102.5},zoom:5,mapTypeControl:false,streetViewControl:false,fullscreenControl:false,clickableIcons:false});
+    HEATMAP.info=new google.maps.InfoWindow();
+  }
+  again.appendChild(HEATMAP.el);
+  HEATMAP.shapes.forEach(s=>s.setMap(null)); HEATMAP.shapes=[];
+  const pts=heatPoints(), max=Math.max(1,...pts.map(g=>g.personas));
+  for(const g of pts){
+    const c=new google.maps.Circle({map:HEATMAP.map,center:{lat:g.centro.lat,lng:g.centro.lon},radius:70000+90000*Math.sqrt(g.personas/max),
+      fillColor:heatColor(g.indice),fillOpacity:.55,strokeColor:heatColor(g.indice),strokeOpacity:.9,strokeWeight:1});
+    c.addListener('click',()=>{ HEATMAP.info.setContent(`<b>${esc(g.zona)}</b><br>Índice de carencia: ${g.indice}<br>${g.personas} personas`); HEATMAP.info.setPosition(c.getCenter()); HEATMAP.info.open(HEATMAP.map); });
+    HEATMAP.shapes.push(c);
+  }
+}
+function exportStatsCsv(){
+  const d=state.stats.data; if(!d) return;
+  const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const rows=[['zona','personas','indice_carencia','con_ninos_pct','con_mayores_pct','con_mascotas_pct','movilidad_reducida_pct','planta_baja_pct','kit_promedio_pct','pasos_plan_promedio']];
+  for(const g of d.grupos) rows.push([g.zona,g.personas,g.indice,g.hogares.conNinos,g.hogares.conMayores,g.hogares.conMascotas,g.hogares.movilidadReducida,g.hogares.plantaBaja,g.botiquinKitPromedioPct,g.pasosPromedioDelPlan]);
+  rows.push([]); rows.push(['zona','amenaza','carencia','respondieron','porcentaje']);
+  for(const g of d.grupos) for(const c of g.carencias) rows.push([g.zona,c.hazard,c.label,c.answered,c.pct]);
+  const blob=new Blob(['﻿'+rows.map(r=>r.map(q).join(',')).join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='kairos-estadisticas-'+state.stats.level+'.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 function accountView(){ return `<h1>Cuenta</h1>${planCard()}${accountCard()}`; }
 function currentView(){

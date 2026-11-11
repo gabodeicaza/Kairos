@@ -44,3 +44,18 @@ test('el nivel municipio agrupa por municipio y estado', () => {
   const docs = Array.from({ length: 10 }, () => person('Guerrero', {}, { zone: { municipio: 'Acapulco' } }));
   assert.equal(aggregate(docs, 'municipio').grupos[0].zona, 'Acapulco, Guerrero');
 });
+
+test('cada zona trae centro del estado e índice de carencia (para el mapa de calor)', () => {
+  const docs = Array.from({ length: 10 }, () => person('Michoacán de Ocampo', { 'f-route': 'no', 'f-docs': 'yes' }));
+  const r = aggregate(docs);
+  const g = r.grupos[0];
+  assert.deepEqual(g.centro, { lat: 19.2, lon: -101.9 });
+  assert.equal(g.indice, 50);                 // f-route 100 %, f-docs 0 % -> promedio 50
+  assert.equal(r.personasVisibles, 10);
+});
+
+test('un estado desconocido no rompe: sin centro en el mapa', () => {
+  const r = aggregate(Array.from({ length: 10 }, () => person('Atlantis')));
+  assert.equal(r.grupos[0].centro, null);
+  assert.equal(r.grupos[0].indice, null);
+});

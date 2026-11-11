@@ -195,8 +195,8 @@ export async function handleAccounts(req, res, pathname, getStore) {
       const p = await store.profile(user.id);
       const env = process.env;
       send(res, 200, { email: user.email, plan: user.plan, planUntil: user.planUntil, partnerEligible: partnerEligible(user.email), billing: billingMode(),
-        // La clave del mapa solo se entrega a quien tiene Premium.
-        maps: user.plan === 'premium' && env.GOOGLE_MAPS_KEY ? { key: env.GOOGLE_MAPS_KEY } : null, data: (p && p.data) || null });
+        // La clave del mapa solo se entrega a Premium y a socios (mapa de calor).
+        maps: (user.plan === 'premium' || user.plan === 'socio') && env.GOOGLE_MAPS_KEY ? { key: env.GOOGLE_MAPS_KEY } : null, data: (p && p.data) || null });
       return true;
     }
     if (pathname === '/api/profile') {
