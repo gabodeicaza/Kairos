@@ -24,6 +24,8 @@ android {
         versionCode = 1
         versionName = "1.0"
         buildConfigField("String", "NASA_API_KEY", "\"${secrets.getProperty("NASA_API_KEY", "")}\"")
+        // Clave de Google Maps SDK for Android: se inyecta en el manifest desde secrets.properties (no se versiona).
+        manifestPlaceholders["MAPS_API_KEY"] = secrets.getProperty("MAPS_API_KEY", "")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -57,6 +59,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.play.services.maps)
     testImplementation(libs.junit)
     testImplementation("org.json:json:20240303") // el org.json de Android no existe en pruebas JVM
     androidTestImplementation(platform(libs.androidx.compose.bom))
